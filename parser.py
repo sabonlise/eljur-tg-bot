@@ -5,7 +5,7 @@ import requests
 
 def main():
     session = requests.Session()
-    auth(session, 'soralin', 'device12')
+    auth(session, login, password)
     full_journal = get_full_journal_week(session)
     week_days = get_week_days(full_journal)
     journal = get_journal(full_journal)
