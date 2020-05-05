@@ -12,16 +12,20 @@ def menu(update, context):
                  InlineKeyboardButton("Чат", callback_data='chat')],
                 [InlineKeyboardButton("Книги", callback_data='books'),
                  InlineKeyboardButton("Помощь", callback_data='help')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Выберите функцию:", reply_markup=reply_markup)
+    reply_markup = ReplyKeyboardMarkup(keyboard)
+    context.bot.send_message(chat_id=update.effective_chat.id, text='фунции выведены', reply_markup=reply_markup)
 
 
-def start(update, context):
-    # context.bot.send_message(chat_id=update.effective_chat.id, text="введите логин")
-
-    kb = [[KeyboardButton('Меню', callbackdata='menu')]]
-    ReplyMarkup = ReplyKeyboardMarkup(kb)
-    context.bot.send_message(chat_id=update.effective_chat.id, reply_markup=ReplyMarkup)
+def start(update, context):  # недоделано
+    # ввод данных
+    context.bot.send_message(chat_id=update.effective_chat.id, text="введите логин")
+    login = 1
+    context.bot.send_message(chat_id=update.effective_chat.id, text="введите пароль")
+    password = 2
+    # пока костыль
+    user_check = password_check = True
+    if check(login, password, update.message.from_user['id']):
+        menu(update, context)
 
 
 def button(update, context):
