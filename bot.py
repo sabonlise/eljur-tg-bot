@@ -3,7 +3,6 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton,
 from api import TOKEN
 import requests
 from methods.authorization import auth
-from database import database
 
 REQUEST_KWARGS = {
     'proxy_url': 'socks5://77.81.226.18:1080',
