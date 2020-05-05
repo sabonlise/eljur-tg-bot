@@ -28,14 +28,19 @@ def menu(update, context):
     context.bot.send_message(chat_id=update.effective_chat.id, text='фунции выведены', reply_markup=reply_markup)
 
 
-def start(update, context):  # недоделано
-    # ввод данных
+# ввод данных
+    # if update.message.from_user.id not in надо дописать обращения к бд
     context.bot.send_message(chat_id=update.effective_chat.id, text="введите логин")
-    login = 1
+    inp = MessageHandler(Filters.text & (~Filters.command), input_login)
+    dispatcher.add_handler(inp)
+
+    dispatcher.remove_handler(inp)
     context.bot.send_message(chat_id=update.effective_chat.id, text="введите пароль")
-    password = 2
-    # пока костыль
-    user_check = password_check = True
+    inp = MessageHandler(Filters.text & (~Filters.command), input_password)
+    dispatcher.add_handler(inp)
+    while password == '':
+        pass
+    dispatcher.remove_handler(inp)
     if check(login, password, update.message.from_user['id']):
         menu(update, context)
 
