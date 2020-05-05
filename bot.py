@@ -9,6 +9,16 @@ REQUEST_KWARGS = {
 }
 
 
+def check(login, password, id):
+    session = requests.Session()
+    if auth(session, login, password):
+        # надо запись в БД написать
+        return True
+    else:
+        return False
+
+
+
 def menu(update, context):
     keyboard = [[InlineKeyboardButton("Расписание", callback_data='table'),
                  InlineKeyboardButton("Чат", callback_data='chat')],
