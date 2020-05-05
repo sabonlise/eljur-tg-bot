@@ -2,12 +2,16 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, Filters
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 from api import TOKEN
 
+REQUEST_KWARGS = {
+    'proxy_url': 'socks5://77.81.226.18:1080',
+}
+
 
 def menu(update, context):
-    keyboard = [[InlineKeyboardButton("расписание", callback_data='table'),
-                 InlineKeyboardButton("чат", callback_data='chat')],
-                [InlineKeyboardButton("книги", callback_data='books'),
-                 InlineKeyboardButton("помощь", callback_data='help')]]
+    keyboard = [[InlineKeyboardButton("Расписание", callback_data='table'),
+                 InlineKeyboardButton("Чат", callback_data='chat')],
+                [InlineKeyboardButton("Книги", callback_data='books'),
+                 InlineKeyboardButton("Помощь", callback_data='help')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     context.bot.send_message(chat_id=update.effective_chat.id, text="Выберите функцию:", reply_markup=reply_markup)
 
@@ -15,7 +19,7 @@ def menu(update, context):
 def start(update, context):
     # context.bot.send_message(chat_id=update.effective_chat.id, text="введите логин")
 
-    kb = [[KeyboardButton('меню', callbackdata='menu')]]
+    kb = [[KeyboardButton('Меню', callbackdata='menu')]]
     ReplyMarkup = ReplyKeyboardMarkup(kb)
     context.bot.send_message(chat_id=update.effective_chat.id, reply_markup=ReplyMarkup)
 
@@ -26,63 +30,71 @@ def button(update, context):
     try:
         if query.data == 'table':
             Functions.table(update, context)
-            inf = "расписание:"
+            inf = "Расписание:"
         elif query.data == 'chat':
             Functions.chat(update, context)
-            inf = "чат:"
+            inf = "Чат:"
         elif query.data == 'books':
             Functions.books(update, context)
-            inf = "библиотека:"
+            inf = "Библиотека:"
         elif query.data == 'help':
-            inf = 'помощь:'
+            inf = 'Помощь:'
             Functions.help(update, context)
         else:
-            inf = 'error'
+            inf = 'Error'
     except Exception as er:
         print(er)
     query.edit_message_text(text=inf)
 
 
 class Functions:
+    @staticmethod
     def books(update, context):
         context.bot.send_message(chat_id=update.effective_chat.id, text="ого, это же библиотека, кто этим вообще пользуется?")
 
+    @staticmethod
     def chat(update, context):
         context.bot.send_message(chat_id=update.effective_chat.id, text="Здесь могла быть ваша реклама, но мы сделаем чат")
 
+    @staticmethod
     def table(update, context):
         context.bot.send_message(chat_id=update.effective_chat.id, text="Здесь будет расписание")
 
+    @staticmethod
     def help(update, context):
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Команды:")
-        context.bot.send_message(chat_id=update.effective_chat.id, text="/table - расписание")
-        context.bot.send_message(chat_id=update.effective_chat.id, text="/chat - чат")
-        context.bot.send_message(chat_id=update.effective_chat.id, text="/books - библиотека книг")
-        context.bot.send_message(chat_id=update.effective_chat.id, text="/menu - меню")
-        context.bot.send_message(chat_id=update.effective_chat.id, text="/help - помощь")
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Команды:\n"
+                                                                        "/table - расписание\n"
+                                                                        "/chat - чат\n"
+                                                                        "/books - библиотека книг\n"
+                                                                        "/menu - меню\n"
+                                                                        "/help - помощь")
 
 
-#start app
-updater = Updater(token=TOKEN, use_context=True)
-dispatcher = updater.dispatcher
+def main():
+    # start app
+    updater = Updater(token=TOKEN, use_context=True, request_kwargs=REQUEST_KWARGS)
+    dispatcher = updater.dispatcher
 
-#commands
-start = CommandHandler('start', start)
-menu = CommandHandler('menu', menu)
-table = CommandHandler("table", Functions.table)
-chat = CommandHandler("chat", Functions.chat)
-books = CommandHandler("books", Functions.books)
-help = CommandHandler('help', Functions.help)
+    # commands
+    start_ = CommandHandler('start', start)
+    menu_ = CommandHandler('menu', menu)
+    table = CommandHandler("table", Functions.table)
+    chat = CommandHandler("chat", Functions.chat)
+    books = CommandHandler("books", Functions.books)
+    help = CommandHandler('help', Functions.help)
+
+    # add commands
+    dispatcher.add_handler(start_)
+    dispatcher.add_handler(help)
+    dispatcher.add_handler(CallbackQueryHandler(button))
+    dispatcher.add_handler(table)
+    dispatcher.add_handler(menu_)
+    dispatcher.add_handler(chat)
+    dispatcher.add_handler(books)
+
+    # start app
+    updater.start_polling()
 
 
-#add commands
-dispatcher.add_handler(start)
-dispatcher.add_handler(help)
-dispatcher.add_handler(CallbackQueryHandler(button))
-dispatcher.add_handler(table)
-dispatcher.add_handler(menu)
-dispatcher.add_handler(chat)
-dispatcher.add_handler(books)
-
-#start app
-updater.start_polling()
+if __name__ == '__main__':
+    main()
