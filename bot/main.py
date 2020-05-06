@@ -1,9 +1,6 @@
 import requests
 import secrets
-from data import db_session
-from data.users import User
 
-from telegram import Update
 from telegram import ParseMode
 from telegram import InlineKeyboardButton
 from telegram import InlineKeyboardMarkup
@@ -18,8 +15,9 @@ from telegram.ext import Filters
 from telegram.ext import CallbackQueryHandler
 from telegram.utils.request import Request
 
+from bot.schedule import *
 from bot.buttons import get_base_reply_keyboard
-from bot.settings import TOKEN
+from bot.settings import TOKEN, REQUEST_KWARGS
 
 from methods.authorization import auth
 from methods.journal import *
@@ -37,12 +35,16 @@ CALLBACK_BUTTON8_FRIDAY = 'пятница'
 CALLBACK_BUTTON9_WEDNESDAY = 'среда'
 CALLBACK_BUTTON10_SATURDAY = "суббота"
 CALLBACK_BUTTON_HIDE_KEYBOARD = "callback_button9_hide"
+CALLBACK_BUTTON_PREV_WEEK = 'callback_button_prev_week'
+CALLBACK_BUTTON_NEXT_WEEK = 'callback_button_next_week'
+
+# storage = {}
 
 TITLES = {
     CALLBACK_BUTTON1_MARKS: "Оценки️",
     CALLBACK_BUTTON2_SKIPS: "Пропуски️",
-    CALLBACK_BUTTON3_SCHEDULE: "Дневник ➡️",
-    CALLBACK_BUTTON4_BACK: "Назад ⬅️",
+    CALLBACK_BUTTON3_SCHEDULE: "Дневник ️",
+    CALLBACK_BUTTON4_BACK: "Назад ️",
     CALLBACK_BUTTON5_MONDAY: "Понедельник ",
     CALLBACK_BUTTON6_THURSDAY: "Четверг ",
     CALLBACK_BUTTON7_TUESDAY: "Вторник ",
@@ -50,10 +52,8 @@ TITLES = {
     CALLBACK_BUTTON9_WEDNESDAY: "Среда ",
     CALLBACK_BUTTON10_SATURDAY: "Суббота ",
     CALLBACK_BUTTON_HIDE_KEYBOARD: "Скрыть клавиатуру ",
-}
-
-REQUEST_KWARGS = {
-    'proxy_url': 'socks5://77.81.226.18:1080',
+    CALLBACK_BUTTON_PREV_WEEK: "⬅️",
+    CALLBACK_BUTTON_NEXT_WEEK: "➡️"
 }
 
 
@@ -73,7 +73,7 @@ def get_base_inline_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_keyboard2():
+def get_schedule():
     keyboard = [
         [
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON5_MONDAY], callback_data=CALLBACK_BUTTON5_MONDAY),
@@ -88,75 +88,94 @@ def get_keyboard2():
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON10_SATURDAY], callback_data=CALLBACK_BUTTON10_SATURDAY)
         ],
         [
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PREV_WEEK], callback_data=CALLBACK_BUTTON_PREV_WEEK),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON4_BACK], callback_data=CALLBACK_BUTTON4_BACK),
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_NEXT_WEEK], callback_data=CALLBACK_BUTTON_NEXT_WEEK)
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
+def check_user(update: Update, context: CallbackContext):
+    session_db = db_session.create_session()
+    chat_id = update.effective_message.chat_id
+    user = session_db.query(User).filter(User.telegram_id == chat_id).first()
+    if user:
+        return True
+    return False
+
+
 def keyboard_callback_handler(update: Update, context: CallbackContext):
+    chat_id = update.effective_message.chat_id
+
     query = update.callback_query
     data = query.data
 
-    chat_id = update.effective_message.chat_id
     current_text = update.effective_message.text
 
     if data == CALLBACK_BUTTON1_MARKS:
         # тут будет информация об оценках
-        query.edit_message_text(
-            text=current_text,
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        """context.bot.send_message(
+        context.bot.send_message(
             chat_id=chat_id,
-            text="Новое сообщение".format(data),
+            text="Оценки за текущий период:",
             reply_markup=get_base_inline_keyboard(),
-        )"""
+        )
     elif data == CALLBACK_BUTTON2_SKIPS:
         # тут будет информация о пропусках
-        query.edit_message_text(
-            text="что)",
+        context.bot.send_message(
+            chat_id=chat_id,
+            text="Пропуски за текущий период:",
             reply_markup=get_base_inline_keyboard(),
         )
     elif data == CALLBACK_BUTTON3_SCHEDULE:
-        # клавиатура с дневником
+        storage[chat_id] = {'week_state': 0}
         query.edit_message_text(
-            text=current_text,
-            reply_markup=get_keyboard2(),
+            text='Расписание за текущую неделю',
+            reply_markup=get_schedule(),
+            parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON4_BACK:
-        # возврат назад
-        query.edit_message_text(
-            text=current_text,
+        # возврат назад в помощь (need to be fixed)
+        context.bot.send_message(
+            text="Вы вернулись назад",
             reply_markup=get_base_inline_keyboard(),
+        )
+        # help(update=update, context=context)
+    elif data == CALLBACK_BUTTON_NEXT_WEEK:
+        storage[chat_id]['week_state'] += 1
+        if storage[chat_id]['week_state'] > 1:
+            storage[chat_id]['week_state'] = 1
+        text = 'Расписание за <i>следующую</i> неделю.' \
+            if storage[chat_id]['week_state'] == 1 \
+            else 'Расписание за <i>текущую</i> неделю.'
+        query.edit_message_text(
+            text=text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_schedule(),
+        )
+    elif data == CALLBACK_BUTTON_PREV_WEEK:
+        storage[chat_id]['week_state'] -= 1
+        if storage[chat_id]['week_state'] < -1:
+            storage[chat_id]['week_state'] = -1
+        text = 'Расписание за <i>предыдущую</i> неделю.' \
+            if storage[chat_id]['week_state'] == -1 \
+            else 'Расписание за <i>текущую</i> неделю.'
+        query.edit_message_text(
+            text=text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_schedule(),
         )
     elif data in (CALLBACK_BUTTON5_MONDAY, CALLBACK_BUTTON6_THURSDAY,
                   CALLBACK_BUTTON7_TUESDAY, CALLBACK_BUTTON8_FRIDAY,
                   CALLBACK_BUTTON9_WEDNESDAY, CALLBACK_BUTTON10_SATURDAY):
-        session_db = db_session.create_session()
-        user = session_db.query(User).filter(User.telegram_id == chat_id).first()
-        if not user:
-            output = ['Вы ещё не авторизованы! Для авторизации введите логин и пароль через команду /login '
-                      'в формате /login login:password']
-        else:
-            output = []
-            session = requests.Session()
-            login = user.name
-            key = user.hash
-            password = password_decrypt(user.hashed_password, key).decode()
-            auth(session, login, password)
-            full_journal = get_full_journal_week(session)
-            lessons_dictionary = get_lessons(full_journal)
-            for days, lessons in lessons_dictionary.items():
-                days = days.lower()
-                if data in days:
-                    output.append(f'Расписание за {days}:')
-                    for lesson in lessons:
-                        output.append(lesson)
-        query.edit_message_text(
-            text='\n'.join(output),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_keyboard2(),
+        schedule = save_schedule(update=update, context=context)
+        output = save_formatted_schedule(data, schedule)
+        
+        context.bot.send_message(
+            chat_id=chat_id,
+            text="\n".join(output),
+            reply_markup=get_schedule(),
+            parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON_HIDE_KEYBOARD:
         context.bot.send_message(
@@ -167,16 +186,19 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
 
 
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        text="Привет! Для начала работы введь логин и пароль от элжура через команду /login"
-             "в формате /login login:password",
-        reply_markup=get_base_reply_keyboard(),
-    )
+    if check_user(update=update, context=context):
+        help(update=update, context=context)
+    else:
+        update.message.reply_text(
+            text="Вы ещё не авторизованы! Для авторизации введите логин и пароль через команду /login"
+                 "в формате\n/login login:password",
+            reply_markup=get_base_reply_keyboard()
+        )
 
 
 def help(update: Update, context: CallbackContext):
     update.message.reply_text(
-        text="Тут будет подробная помощь",
+        text="Здесь будет подробная помощь",
         reply_markup=get_base_inline_keyboard(),
     )
 
@@ -186,13 +208,12 @@ def echo(update: Update, context: CallbackContext):
     text = update.message.text
     if text == 'Помощь':
         return help(update=update, context=context)
-    elif text.startswith('/login'):
-        try:
-            session_db = db_session.create_session()
-            check_user = session_db.query(User).filter(User.telegram_id == chat_id).first()
-            if check_user:
-                reply_text = 'Вы уже авторизованы!'
-            else:
+    elif text.startswith('/login') and text.count('/login') == 1:
+        if check_user(update=update, context=context):
+            reply_text = 'Вы уже авторизованы!'
+            keyboard = get_base_reply_keyboard()
+        else:
+            try:
                 login, password = text.replace('/login ', '').split(':')
                 session = requests.Session()
                 auth(session, login, password)
@@ -201,21 +222,24 @@ def echo(update: Update, context: CallbackContext):
                 user.name = login
                 user.hash = secrets.token_bytes(32)
                 user.hashed_password = password_encrypt(password.encode(), user.hash)
+                session_db = db_session.create_session()
                 session_db.add(user)
                 session_db.commit()
                 reply_text = 'Успешная авторизация!'
-        except Exception as e:
-            reply_text = 'Неверный логин или пароль.'
+                keyboard = get_base_inline_keyboard()
+            except (ValueError, IndexError):
+                keyboard = get_base_reply_keyboard()
+                reply_text = 'Неверный логин или пароль.'
         update.message.reply_text(
             text=reply_text,
-            reply_markup=get_base_inline_keyboard(),
+            reply_markup=keyboard
         )
 
 
 def main():
     # путь до бд
     db_session.global_init('E:\\web-server\\db\\users.sqlite')
-    # токен от бота
+    # токен от бота и прокси сервер из файла settings
     updater = Updater(
         token=TOKEN,
         use_context=True,
