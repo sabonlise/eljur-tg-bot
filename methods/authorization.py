@@ -6,7 +6,8 @@ def auth(session: requests.Session, login: str, password: str):
                                  data={'username': login,
                                        'password': password}).json()
     # отправка сообщений в тг в зависмости от результата ниже
-    if authorization['errors']:
-        raise Exception('Неверный логин или пароль.')
-    elif authorization['actions'][0]['url'].startswith('/?user='):
+    """if authorization['errors']:
+        raise Exception('Неверный логин или пароль.')"""
+    if authorization['actions'][0]['url'].startswith('/?user='):
         print('Успешная авторизация.')
+    """else IndexError"""
