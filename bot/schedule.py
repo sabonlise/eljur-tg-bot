@@ -1,7 +1,5 @@
-import re
-import requests
-
-from methods.crypto import password_decrypt, password_encrypt
+from methods.crypto import password_decrypt
+from methods.authorization import auth
 from methods.journal import *
 
 from telegram.ext import CallbackContext
@@ -12,7 +10,7 @@ from data.users import User
 storage = {}
 
 
-def save_schedule(update: Update, context: CallbackContext):
+def save_schedule(update: Update, context: CallbackContext) -> dict:
     chat_id = update.effective_message.chat_id
     state = storage[chat_id]['week_state']
     try:
@@ -34,11 +32,10 @@ def save_schedule(update: Update, context: CallbackContext):
         return storage[chat_id][state]
 
 
-def save_formatted_schedule(match_day, schedule):
+def save_formatted_schedule(match_day: str, schedule: dict) -> list:
     day = [day for day in schedule.keys() if match_day in day.lower().split(',')[0]][-1]
     output = [f'Задания за <b>{day.lower()}</b>:']
     lessons = schedule[day]
-    print(lessons)
     if len(lessons) == 1:
         return output + [f'<b>{lessons[0]}</b>']
     else:
@@ -46,14 +43,17 @@ def save_formatted_schedule(match_day, schedule):
             time = re.findall(r'\d\d:\d\d–\d\d:\d\d', lesson)
             # todo: фикс в случае непраивльного парсинга по времени
             time = time[0] if time else 'оп ахах)'
-            print(time)
-            lesson = lesson.split()
+            lesson = lesson.replace('\n', '\n\t\t\t\t\t').\
+                replace('Онлайн-урок завершен', '').replace('Онлайн-урок', '').split(' ')
             order = lesson[0]
             subject = lesson[2].capitalize()
             if len(lesson) in [4, 3] and lesson[1] == time:
-                output.append(f'{order}\t   {subject}, {time} ⏰:  <b>домашнего задания нет!</b>')
+                output.append(f'{order}\t   {subject}, {time}:  <b>домашнего задания нет!</b>')
             else:
                 homework = ' '.join(lesson[3:])
-                output.append(f'{order}\t   {subject}, {time} ⏰:\n'
+                if lesson[3] == 'час' or lesson[3] == 'язык':
+                    subject = f'{lesson[2].capitalize()} {lesson[3]}'
+                    homework = ' '.join(lesson[4:])
+                output.append(f'{order}\t   {subject}, {time}:\n'
                               f'\t    📝  {homework}')
         return output
