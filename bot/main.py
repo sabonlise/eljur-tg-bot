@@ -21,7 +21,7 @@ from bot.settings import TOKEN, REQUEST_KWARGS
 
 from methods.authorization import auth
 from methods.journal import *
-from methods.crypto import password_decrypt, password_encrypt
+from methods.crypto import password_encrypt
 
 
 CALLBACK_BUTTON1_MARKS = "callback_button1_marks"
@@ -38,7 +38,6 @@ CALLBACK_BUTTON_HIDE_KEYBOARD = "callback_button9_hide"
 CALLBACK_BUTTON_PREV_WEEK = 'callback_button_prev_week'
 CALLBACK_BUTTON_NEXT_WEEK = 'callback_button_next_week'
 
-# storage = {}
 
 TITLES = {
     CALLBACK_BUTTON1_MARKS: "Оценки️",
@@ -55,6 +54,17 @@ TITLES = {
     CALLBACK_BUTTON_PREV_WEEK: "⬅️",
     CALLBACK_BUTTON_NEXT_WEEK: "➡️"
 }
+
+
+def change_buttons(update: Update, context: CallbackContext):
+    schedule = save_schedule(update=update, context=context)
+    week_days = list(schedule.keys())
+    TITLES[CALLBACK_BUTTON5_MONDAY] = week_days[0]
+    TITLES[CALLBACK_BUTTON6_THURSDAY] = week_days[3]
+    TITLES[CALLBACK_BUTTON7_TUESDAY] = week_days[1]
+    TITLES[CALLBACK_BUTTON8_FRIDAY] = week_days[4]
+    TITLES[CALLBACK_BUTTON9_WEDNESDAY] = week_days[2]
+    TITLES[CALLBACK_BUTTON10_SATURDAY] = week_days[5]
 
 
 def get_base_inline_keyboard():
@@ -96,7 +106,7 @@ def get_schedule():
     return InlineKeyboardMarkup(keyboard)
 
 
-def check_user(update: Update, context: CallbackContext):
+def user_exists(update: Update, context: CallbackContext):
     session_db = db_session.create_session()
     chat_id = update.effective_message.chat_id
     user = session_db.query(User).filter(User.telegram_id == chat_id).first()
@@ -129,14 +139,15 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         )
     elif data == CALLBACK_BUTTON3_SCHEDULE:
         storage[chat_id] = {'week_state': 0}
+        change_buttons(update=update, context=context)
         query.edit_message_text(
             text='Расписание за текущую неделю',
             reply_markup=get_schedule(),
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON4_BACK:
-        # возврат назад в помощь (need to be fixed)
         context.bot.send_message(
+            chat_id=chat_id,
             text="Вы вернулись назад",
             reply_markup=get_base_inline_keyboard(),
         )
@@ -148,6 +159,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         text = 'Расписание за <i>следующую</i> неделю.' \
             if storage[chat_id]['week_state'] == 1 \
             else 'Расписание за <i>текущую</i> неделю.'
+        change_buttons(update=update, context=context)
         query.edit_message_text(
             text=text,
             parse_mode=ParseMode.HTML,
@@ -160,6 +172,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         text = 'Расписание за <i>предыдущую</i> неделю.' \
             if storage[chat_id]['week_state'] == -1 \
             else 'Расписание за <i>текущую</i> неделю.'
+        change_buttons(update=update, context=context)
         query.edit_message_text(
             text=text,
             parse_mode=ParseMode.HTML,
@@ -170,7 +183,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
                   CALLBACK_BUTTON9_WEDNESDAY, CALLBACK_BUTTON10_SATURDAY):
         schedule = save_schedule(update=update, context=context)
         output = save_formatted_schedule(data, schedule)
-        
+
         context.bot.send_message(
             chat_id=chat_id,
             text="\n".join(output),
@@ -186,7 +199,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
 
 
 def start(update: Update, context: CallbackContext):
-    if check_user(update=update, context=context):
+    if user_exists(update=update, context=context):
         help(update=update, context=context)
     else:
         update.message.reply_text(
@@ -199,7 +212,7 @@ def start(update: Update, context: CallbackContext):
 def help(update: Update, context: CallbackContext):
     update.message.reply_text(
         text="Здесь будет подробная помощь",
-        reply_markup=get_base_inline_keyboard(),
+        reply_markup=get_base_inline_keyboard()
     )
 
 
@@ -209,7 +222,7 @@ def echo(update: Update, context: CallbackContext):
     if text == 'Помощь':
         return help(update=update, context=context)
     elif text.startswith('/login') and text.count('/login') == 1:
-        if check_user(update=update, context=context):
+        if user_exists(update=update, context=context):
             reply_text = 'Вы уже авторизованы!'
             keyboard = get_base_reply_keyboard()
         else:
