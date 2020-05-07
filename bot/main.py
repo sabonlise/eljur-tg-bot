@@ -17,7 +17,7 @@ from telegram.utils.request import Request
 
 from bot.schedule import *
 from bot.buttons import get_base_reply_keyboard
-from bot.settings import TOKEN, REQUEST_KWARGS
+from bot.settings import TOKEN, REQUEST_KWARGS, CHAT_URL
 
 from methods.authorization import auth
 from methods.journal import *
@@ -74,12 +74,12 @@ def get_base_inline_keyboard():
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON2_SKIPS], callback_data=CALLBACK_BUTTON2_SKIPS),
         ],
         [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_HIDE_KEYBOARD], callback_data=CALLBACK_BUTTON_HIDE_KEYBOARD),
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON3_SCHEDULE], callback_data=CALLBACK_BUTTON3_SCHEDULE),
+            InlineKeyboardButton('Чат', url=CHAT_URL)
         ],
         [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON3_SCHEDULE], callback_data=CALLBACK_BUTTON3_SCHEDULE),
-            InlineKeyboardButton('Чат', url=chat_url),
-        ],
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_HIDE_KEYBOARD], callback_data=CALLBACK_BUTTON_HIDE_KEYBOARD),
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -201,21 +201,25 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
 
 def start(update: Update, context: CallbackContext):
     if user_exists(update=update, context=context):
-        update.message.reply_text(text="Подождите",
-                                      reply_markup=get_base_reply_keyboard())
         help(update=update, context=context)
     else:
         update.message.reply_text(
-            text="Вы ещё не авторизованы! Для авторизации введите логин и пароль через команду /login"
-                 "в формате\n/login login:password",
+            text="Вы ещё не авторизованы! Для авторизации введите логин и пароль через команду /login "
+                 "в формате\n/login <login> <password>",
             reply_markup=get_base_reply_keyboard()
         )
 
 
 def help(update: Update, context: CallbackContext):
     update.message.reply_text(
-        text="Здесь будет подробная помощь",
-        reply_markup=get_base_inline_keyboard()
+        text="Доступные команды:\n"
+             "/login <login> <password> - авторизация.\n"
+             "/relogin <password> <password again> - смена пароля в боте если вы сменили пароль в элжуре.\n\n"
+             "Кнопки:\n"
+             "🎓 Оценки - Ваши оценки за текущий период.\n"
+             "📖 Дневник - Домашние задания за предыдущую, текущую и следующую неделю по всем предметам.\n"
+             "❌ Пропуски - Ваши пропуски за текущий период.",
+        reply_markup=get_base_inline_keyboard(),
     )
 
 
@@ -224,13 +228,16 @@ def echo(update: Update, context: CallbackContext):
     text = update.message.text
     if text == 'Помощь':
         return help(update=update, context=context)
-    elif text.startswith('/login') and text.count('/login') == 1:
+    elif text.startswith('/login'):
         if user_exists(update=update, context=context):
-            reply_text = 'Вы уже авторизованы!'
+            reply_text = 'Вы уже авторизованы! Если вы сменили пароль, ты повторите процедуру через ' \
+                         'команду /relogin.\n\t\t\t' \
+                         '/relogin <password> <password again>'
             keyboard = get_base_reply_keyboard()
         else:
             try:
-                login, password = text.replace('/login ', '').split(':')
+                logpass = text.split()
+                login, password = logpass[1], logpass[2]
                 session = requests.Session()
                 auth(session, login, password)
                 user = User()
@@ -246,6 +253,39 @@ def echo(update: Update, context: CallbackContext):
             except (ValueError, IndexError):
                 keyboard = get_base_reply_keyboard()
                 reply_text = 'Неверный логин или пароль.'
+        update.message.reply_text(
+            text=reply_text,
+            reply_markup=keyboard,
+        )
+    elif text.startswith('/relogin'):
+        if not user_exists(update=update, context=context):
+            reply_text = 'Вы не можете использовать эту команду, так как не авторизовывались ранее.'
+            keyboard = get_base_reply_keyboard()
+        else:
+            try:
+                session_db = db_session.create_session()
+                password = text.split()
+                password1, password2 = password[1], password[2]
+                assert password1 == password2, 'Пароли не совпадают!'
+                session = requests.Session()
+                user = session_db.query(User).filter(User.telegram_id == chat_id).first()
+                old_password = password_decrypt(user.hashed_password, user.hash).decode()
+                if old_password == password2:
+                    reply_text = 'Новый пароль не отличается от старого :('
+                    keyboard = get_base_reply_keyboard()
+                else:
+                    auth(session, user.name, password1)
+                    user.hash = secrets.token_bytes(32)
+                    user.hashed_password = password_encrypt(password1.encode(), user.hash)
+                    session_db.commit()
+                    reply_text = 'Пароль успешно изменен!'
+                    keyboard = get_base_inline_keyboard()
+            except AssertionError as e:
+                keyboard = get_base_reply_keyboard()
+                reply_text = e.args[0]
+            except (ValueError, IndexError):
+                keyboard = get_base_reply_keyboard()
+                reply_text = 'Неверный пароль.'
         update.message.reply_text(
             text=reply_text,
             reply_markup=keyboard
