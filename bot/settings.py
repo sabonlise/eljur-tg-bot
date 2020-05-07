@@ -11,3 +11,5 @@ REQUEST_KWARGS = {
     #     'password': 'password'
     # }
 }
+# insert your chat url here
+CHAT_URL = ''
