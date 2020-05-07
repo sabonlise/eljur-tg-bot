@@ -26,7 +26,6 @@ def get_week_days(journal: list) -> list:
 
 def get_lessons(full_journal: list) -> dict:
     journal = re.split(r'(\w+, \d{2}\.\d{2})', ' '.join(full_journal))
-    print(1, journal)
     lessons = {}
     del journal[0]
     journal = [day.strip() for day in journal]
