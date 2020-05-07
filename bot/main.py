@@ -78,6 +78,7 @@ def get_base_inline_keyboard():
         ],
         [
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON3_SCHEDULE], callback_data=CALLBACK_BUTTON3_SCHEDULE),
+            InlineKeyboardButton('Чат', url=chat_url),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -200,6 +201,8 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
 
 def start(update: Update, context: CallbackContext):
     if user_exists(update=update, context=context):
+        update.message.reply_text(text="Подождите",
+                                      reply_markup=get_base_reply_keyboard())
         help(update=update, context=context)
     else:
         update.message.reply_text(
