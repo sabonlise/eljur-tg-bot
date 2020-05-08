@@ -98,31 +98,30 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         # тут будет информация об оценках
         context.bot.send_message(
             chat_id=chat_id,
-            text="Оценки за текущий период:",
+            text="Оценки за текущий период:\n",
             reply_markup=get_base_inline_keyboard()
         )
     elif data == CALLBACK_BUTTON2_SKIPS:
         # тут будет информация о пропусках
         context.bot.send_message(
             chat_id=chat_id,
-            text="Пропуски за текущий период:",
+            text="Пропуски за текущий период:\n",
             reply_markup=get_base_inline_keyboard()
         )
     elif data == CALLBACK_BUTTON3_SCHEDULE:
         storage[chat_id] = {'week_state': 0}
         change_buttons(update=update, context=context)
         query.edit_message_text(
-            text='Расписание за текущую неделю',
+            text='Расписание за <i>текущую</i> неделю.',
             reply_markup=get_schedule(),
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON4_BACK:
         context.bot.send_message(
             chat_id=chat_id,
-            text="Вы вернулись назад",
+            text="Вы вернулись назад.",
             reply_markup=get_base_inline_keyboard()
         )
-        # help(update=update, context=context)
     elif data == CALLBACK_BUTTON_NEXT_WEEK:
         storage[chat_id]['week_state'] += 1
         if storage[chat_id]['week_state'] > 1:
@@ -132,7 +131,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             else 'Расписание за <i>текущую</i> неделю.'
         change_buttons(update=update, context=context)
         query.edit_message_text(
-            text='\n'.join(text),
+            text=text,
             parse_mode=ParseMode.HTML,
             reply_markup=get_schedule()
         )
@@ -145,7 +144,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             else 'Расписание за <i>текущую</i> неделю.'
         change_buttons(update=update, context=context)
         query.edit_message_text(
-            text='\n'.join(text),
+            text=text,
             parse_mode=ParseMode.HTML,
             reply_markup=get_schedule()
         )
@@ -213,10 +212,26 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON_HIDE_KEYBOARD:
+        query.edit_message_text(
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_base2_inline_keyboard(),
+            text="Клавиатура скрыта."
+        )
         context.bot.send_message(
             chat_id=chat_id,
-            text="Скрыл клавиатуру.\n\nНажмите /start чтобы вернуть её обратно",
+            text="Клавиатура скрыта.",
             reply_markup=ReplyKeyboardRemove()
+        )
+    elif data == CALLBACK_BUTTON_RETURN_KEYBOARD:
+        query.edit_message_text(
+            parse_mode=ParseMode.HTML,
+            reply_markup=get_base_inline_keyboard(),
+            text="Клавиатура возвращена."
+        )
+        context.bot.send_message(
+            chat_id=chat_id,
+            text="Клавиатура возвращена.",
+            reply_markup=get_base_reply_keyboard()
         )
 
 
@@ -233,14 +248,7 @@ def start(update: Update, context: CallbackContext):
 
 def help(update: Update, context: CallbackContext):
     update.message.reply_text(
-        text="Доступные команды:\n"
-             "/login <login> <password> - авторизация.\n"
-             "/relogin <password> <password again> - смена пароля в боте если вы сменили пароль в элжуре.\n\n"
-             "Кнопки:\n"
-             "📩 Сообщения - входящие сообщения.\n"
-             "🎓 Оценки - Ваши оценки за текущий период.\n"
-             "📖 Дневник - Домашние задания за предыдущую, текущую и следующую неделю по всем предметам.\n"
-             "❌ Пропуски - Ваши пропуски за текущий период.",
+        text=HELP,
         reply_markup=get_base_inline_keyboard()
     )
 
