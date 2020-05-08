@@ -5,6 +5,13 @@ from telegram import InlineKeyboardMarkup
 
 from bot.settings import CHAT_URL
 
+HELP = "Доступные команды:\n/login <login> <password> - авторизация.\n " \
+       "/relogin <password> <password again> - смена пароля в боте если вы сменили пароль в элжуре.\n\n" \
+       "Кнопки:\n" \
+       "📩 Сообщения - входящие сообщения.\n" \
+       "🎓 Оценки - Ваши оценки за текущий период.\n" \
+       "📖 Дневник - Домашние задания за предыдущую, текущую и следующую неделю по всем предметам.\n" \
+       "❌ Пропуски - Ваши пропуски за текущий период."
 BUTTON1_HELP = "Помощь"
 BUTTON2_CONTACTS = "Контакты"
 
@@ -19,6 +26,7 @@ CALLBACK_BUTTON_PAGE8 = '8'
 CALLBACK_BUTTON_PAGE9 = '9'
 CALLBACK_BUTTON_PAGE10 = '10'
 CALLBACK_BUTTON_HIDE_KEYBOARD = "callback_button_hide"
+CALLBACK_BUTTON_RETURN_KEYBOARD = "callback_button_return"
 CALLBACK_BUTTON_PREV_WEEK = 'callback_button_prev_week'
 CALLBACK_BUTTON_NEXT_WEEK = 'callback_button_next_week'
 CALLBACK_BUTTON_PREV_PAGE = 'callback_button_prev_page'
@@ -48,6 +56,7 @@ TITLES = {
     CALLBACK_BUTTON9_WEDNESDAY: "Среда ",
     CALLBACK_BUTTON10_SATURDAY: "Суббота ",
     CALLBACK_BUTTON_HIDE_KEYBOARD: "Скрыть клавиатуру ",
+    CALLBACK_BUTTON_RETURN_KEYBOARD: "Вернуть клавиатуру ",
     CALLBACK_BUTTON_MESSAGES: "Сообщения ",
     CALLBACK_BUTTON_PREV_WEEK: "⬅️",
     CALLBACK_BUTTON_NEXT_WEEK: "➡️",
@@ -116,6 +125,26 @@ def get_base_inline_keyboard():
         ],
         [
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_HIDE_KEYBOARD], callback_data=CALLBACK_BUTTON_HIDE_KEYBOARD),
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_base2_inline_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON1_MARKS], callback_data=CALLBACK_BUTTON1_MARKS),
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON2_SKIPS], callback_data=CALLBACK_BUTTON2_SKIPS),
+        ],
+        [
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON3_SCHEDULE], callback_data=CALLBACK_BUTTON3_SCHEDULE),
+            InlineKeyboardButton('Чат', url=CHAT_URL)
+        ],
+        [
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_MESSAGES], callback_data=CALLBACK_BUTTON_MESSAGES)
+        ],
+        [
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_RETURN_KEYBOARD], callback_data=CALLBACK_BUTTON_RETURN_KEYBOARD),
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
