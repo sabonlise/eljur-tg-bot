@@ -1,59 +1,59 @@
-import requests
 import secrets
 
 from telegram import ParseMode
-from telegram import InlineKeyboardButton
-from telegram import InlineKeyboardMarkup
 from telegram import ReplyKeyboardRemove
-from telegram import KeyboardButton
-from telegram import ReplyKeyboardMarkup
-from telegram.ext import CallbackContext
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler
 from telegram.ext import Filters
 from telegram.ext import CallbackQueryHandler
-from telegram.utils.request import Request
 
 from bot.schedule import *
-from bot.buttons import get_base_reply_keyboard
-from bot.settings import TOKEN, REQUEST_KWARGS, CHAT_URL
+from bot.keyboard import *
+from bot.settings import TOKEN, REQUEST_KWARGS
 
 from methods.authorization import auth
-from methods.journal import *
+from methods.messages import get_inbox_messages, get_max_pages, get_message_info, get_messages_content
 from methods.crypto import password_encrypt
 
-
-CALLBACK_BUTTON1_MARKS = "callback_button1_marks"
-CALLBACK_BUTTON2_SKIPS = "callback_button2_skips"
-CALLBACK_BUTTON3_SCHEDULE = "callback_button3_schedule"
-CALLBACK_BUTTON4_BACK = "callback_button4_back"
-CALLBACK_BUTTON5_MONDAY = "понедельник"
-CALLBACK_BUTTON6_THURSDAY = "четверг"
-CALLBACK_BUTTON7_TUESDAY = "вторник"
-CALLBACK_BUTTON8_FRIDAY = 'пятница'
-CALLBACK_BUTTON9_WEDNESDAY = 'среда'
-CALLBACK_BUTTON10_SATURDAY = "суббота"
-CALLBACK_BUTTON_HIDE_KEYBOARD = "callback_button9_hide"
-CALLBACK_BUTTON_PREV_WEEK = 'callback_button_prev_week'
-CALLBACK_BUTTON_NEXT_WEEK = 'callback_button_next_week'
+messages_storage = {}
 
 
-TITLES = {
-    CALLBACK_BUTTON1_MARKS: "Оценки️",
-    CALLBACK_BUTTON2_SKIPS: "Пропуски️",
-    CALLBACK_BUTTON3_SCHEDULE: "Дневник ️",
-    CALLBACK_BUTTON4_BACK: "Назад ️",
-    CALLBACK_BUTTON5_MONDAY: "Понедельник ",
-    CALLBACK_BUTTON6_THURSDAY: "Четверг ",
-    CALLBACK_BUTTON7_TUESDAY: "Вторник ",
-    CALLBACK_BUTTON8_FRIDAY: "Пятница ",
-    CALLBACK_BUTTON9_WEDNESDAY: "Среда ",
-    CALLBACK_BUTTON10_SATURDAY: "Суббота ",
-    CALLBACK_BUTTON_HIDE_KEYBOARD: "Скрыть клавиатуру ",
-    CALLBACK_BUTTON_PREV_WEEK: "⬅️",
-    CALLBACK_BUTTON_NEXT_WEEK: "➡️"
-}
+def max_page_user(update: Update, context: CallbackContext):
+    chat_id = update.effective_message.chat_id
+    try:
+        return messages_storage[chat_id]['max_page']
+    except KeyError:
+        login, password = get_logpass(update=update, context=context)
+        session = requests.Session()
+        auth(session, login, password)
+        max_pages = get_max_pages(session)
+        messages_storage[chat_id]['max_page'] = max_pages
+        return messages_storage[chat_id]['max_page']
+
+
+def save_messages(type: str, update: Update, context: CallbackContext):
+    # val 0 = message info
+    # val 1 = full message
+    if type == 'info':
+        val = 0
+    elif type == 'full':
+        val = 1
+
+    chat_id = update.effective_message.chat_id
+    page = messages_storage[chat_id]['page']
+    try:
+        return messages_storage[chat_id][page][val]
+    except KeyError:
+        session = requests.Session()
+        login, password = get_logpass(update=update, context=context)
+        auth(session, login, password)
+        messages = get_inbox_messages(session, page=page)
+        info = get_message_info(messages)
+        content = get_messages_content(messages)
+        messages_storage[chat_id][page] = [info[:10]]
+        messages_storage[chat_id][page].append(content[:10])
+        return messages_storage[chat_id][page][val]
 
 
 def change_buttons(update: Update, context: CallbackContext):
@@ -67,46 +67,6 @@ def change_buttons(update: Update, context: CallbackContext):
     TITLES[CALLBACK_BUTTON10_SATURDAY] = week_days[5]
 
 
-def get_base_inline_keyboard():
-    keyboard = [
-        [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON1_MARKS], callback_data=CALLBACK_BUTTON1_MARKS),
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON2_SKIPS], callback_data=CALLBACK_BUTTON2_SKIPS),
-        ],
-        [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON3_SCHEDULE], callback_data=CALLBACK_BUTTON3_SCHEDULE),
-            InlineKeyboardButton('Чат', url=CHAT_URL)
-        ],
-        [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_HIDE_KEYBOARD], callback_data=CALLBACK_BUTTON_HIDE_KEYBOARD),
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def get_schedule():
-    keyboard = [
-        [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON5_MONDAY], callback_data=CALLBACK_BUTTON5_MONDAY),
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON6_THURSDAY], callback_data=CALLBACK_BUTTON6_THURSDAY),
-        ],
-        [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON7_TUESDAY], callback_data=CALLBACK_BUTTON7_TUESDAY),
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON8_FRIDAY], callback_data=CALLBACK_BUTTON8_FRIDAY)
-        ],
-        [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON9_WEDNESDAY], callback_data=CALLBACK_BUTTON9_WEDNESDAY),
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON10_SATURDAY], callback_data=CALLBACK_BUTTON10_SATURDAY)
-        ],
-        [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PREV_WEEK], callback_data=CALLBACK_BUTTON_PREV_WEEK),
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON4_BACK], callback_data=CALLBACK_BUTTON4_BACK),
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_NEXT_WEEK], callback_data=CALLBACK_BUTTON_NEXT_WEEK)
-        ],
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
 def user_exists(update: Update, context: CallbackContext):
     session_db = db_session.create_session()
     chat_id = update.effective_message.chat_id
@@ -114,6 +74,16 @@ def user_exists(update: Update, context: CallbackContext):
     if user:
         return True
     return False
+
+
+def get_logpass(update: Update, context: CallbackContext):
+    chat_id = update.effective_message.chat_id
+    session_db = db_session.create_session()
+    user = session_db.query(User).filter(User.telegram_id == chat_id).first()
+    login = user.name
+    key = user.hash
+    password = password_decrypt(user.hashed_password, key).decode()
+    return login, password
 
 
 def keyboard_callback_handler(update: Update, context: CallbackContext):
@@ -129,14 +99,14 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         context.bot.send_message(
             chat_id=chat_id,
             text="Оценки за текущий период:",
-            reply_markup=get_base_inline_keyboard(),
+            reply_markup=get_base_inline_keyboard()
         )
     elif data == CALLBACK_BUTTON2_SKIPS:
         # тут будет информация о пропусках
         context.bot.send_message(
             chat_id=chat_id,
             text="Пропуски за текущий период:",
-            reply_markup=get_base_inline_keyboard(),
+            reply_markup=get_base_inline_keyboard()
         )
     elif data == CALLBACK_BUTTON3_SCHEDULE:
         storage[chat_id] = {'week_state': 0}
@@ -150,7 +120,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         context.bot.send_message(
             chat_id=chat_id,
             text="Вы вернулись назад",
-            reply_markup=get_base_inline_keyboard(),
+            reply_markup=get_base_inline_keyboard()
         )
         # help(update=update, context=context)
     elif data == CALLBACK_BUTTON_NEXT_WEEK:
@@ -162,9 +132,9 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             else 'Расписание за <i>текущую</i> неделю.'
         change_buttons(update=update, context=context)
         query.edit_message_text(
-            text=text,
+            text='\n'.join(text),
             parse_mode=ParseMode.HTML,
-            reply_markup=get_schedule(),
+            reply_markup=get_schedule()
         )
     elif data == CALLBACK_BUTTON_PREV_WEEK:
         storage[chat_id]['week_state'] -= 1
@@ -175,10 +145,61 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             else 'Расписание за <i>текущую</i> неделю.'
         change_buttons(update=update, context=context)
         query.edit_message_text(
-            text=text,
+            text='\n'.join(text),
             parse_mode=ParseMode.HTML,
-            reply_markup=get_schedule(),
+            reply_markup=get_schedule()
         )
+    elif data == CALLBACK_BUTTON_MESSAGES:
+        messages_storage[chat_id] = {'page': 1}
+        info = save_messages('info', update=update, context=context)
+        max_page = max_page_user(update=update, context=context)
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"Страница "
+                 f"<b>1/{max_page}</b>\n" + "\n".join(info),
+            reply_markup=get_messages_keyboard(),
+            parse_mode=ParseMode.HTML
+        )
+    elif data == CALLBACK_BUTTON_PREV_PAGE:
+        messages_storage[chat_id]['page'] -= 1
+        max_page = max_page_user(update=update, context=context)
+        if messages_storage[chat_id]['page'] < 1:
+            messages_storage[chat_id]['page'] = 1
+        info = save_messages('info', update=update, context=context)
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"Страница "
+                 f"<b>{messages_storage[chat_id]['page']}/{max_page}</b>\n" + "\n".join(info),
+            reply_markup=get_messages_keyboard(),
+            parse_mode=ParseMode.HTML
+        )
+    elif data == CALLBACK_BUTTON_NEXT_PAGE:
+        max_page = max_page_user(update=update, context=context)
+        messages_storage[chat_id]['page'] += 1
+        if messages_storage[chat_id]['page'] > max_page:
+            messages_storage[chat_id]['page'] = max_page
+        info = save_messages('info', update=update, context=context)
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"Страница "
+                 f"<b>{messages_storage[chat_id]['page']}/{max_page}</b>\n" + "\n".join(info),
+            reply_markup=get_messages_keyboard(),
+            parse_mode=ParseMode.HTML
+        )
+    elif data in (CALLBACK_BUTTON_PAGE1, CALLBACK_BUTTON_PAGE2,
+                  CALLBACK_BUTTON_PAGE3, CALLBACK_BUTTON_PAGE4,
+                  CALLBACK_BUTTON_PAGE5, CALLBACK_BUTTON_PAGE6,
+                  CALLBACK_BUTTON_PAGE7, CALLBACK_BUTTON_PAGE8,
+                  CALLBACK_BUTTON_PAGE9, CALLBACK_BUTTON_PAGE10):
+        content = save_messages('full', update=update, context=context)
+        output = content[int(data) - 1]
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=output,
+            reply_markup=get_messages_keyboard(),
+            parse_mode=ParseMode.HTML
+        )
+
     elif data in (CALLBACK_BUTTON5_MONDAY, CALLBACK_BUTTON6_THURSDAY,
                   CALLBACK_BUTTON7_TUESDAY, CALLBACK_BUTTON8_FRIDAY,
                   CALLBACK_BUTTON9_WEDNESDAY, CALLBACK_BUTTON10_SATURDAY):
@@ -195,7 +216,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         context.bot.send_message(
             chat_id=chat_id,
             text="Скрыл клавиатуру.\n\nНажмите /start чтобы вернуть её обратно",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=ReplyKeyboardRemove()
         )
 
 
@@ -216,10 +237,11 @@ def help(update: Update, context: CallbackContext):
              "/login <login> <password> - авторизация.\n"
              "/relogin <password> <password again> - смена пароля в боте если вы сменили пароль в элжуре.\n\n"
              "Кнопки:\n"
+             "📩 Сообщения - входящие сообщения.\n"
              "🎓 Оценки - Ваши оценки за текущий период.\n"
              "📖 Дневник - Домашние задания за предыдущую, текущую и следующую неделю по всем предметам.\n"
              "❌ Пропуски - Ваши пропуски за текущий период.",
-        reply_markup=get_base_inline_keyboard(),
+        reply_markup=get_base_inline_keyboard()
     )
 
 
@@ -228,6 +250,8 @@ def echo(update: Update, context: CallbackContext):
     text = update.message.text
     if text == 'Помощь':
         return help(update=update, context=context)
+    elif text == 'Контакты':
+        update.message.reply_text(text='Связь с разработчиками: @millionware и @ZERoN11')
     elif text.startswith('/login'):
         if user_exists(update=update, context=context):
             reply_text = 'Вы уже авторизованы! Если вы сменили пароль, ты повторите процедуру через ' \
