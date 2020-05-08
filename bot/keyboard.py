@@ -5,20 +5,19 @@ from telegram import InlineKeyboardMarkup
 
 from bot.settings import CHAT_URL
 
-
 BUTTON1_HELP = "Помощь"
 BUTTON2_CONTACTS = "Контакты"
 
-CALLBACK_BUTTON_PAGE1 = '1.'
-CALLBACK_BUTTON_PAGE2 = '2.'
-CALLBACK_BUTTON_PAGE3 = '3.'
-CALLBACK_BUTTON_PAGE4 = '4.'
-CALLBACK_BUTTON_PAGE5 = '5.'
-CALLBACK_BUTTON_PAGE6 = '6.'
-CALLBACK_BUTTON_PAGE7 = '7.'
-CALLBACK_BUTTON_PAGE8 = '8.'
-CALLBACK_BUTTON_PAGE9 = '9.'
-CALLBACK_BUTTON_PAGE10 = '10.'
+CALLBACK_BUTTON_PAGE1 = '1'
+CALLBACK_BUTTON_PAGE2 = '2'
+CALLBACK_BUTTON_PAGE3 = '3'
+CALLBACK_BUTTON_PAGE4 = '4'
+CALLBACK_BUTTON_PAGE5 = '5'
+CALLBACK_BUTTON_PAGE6 = '6'
+CALLBACK_BUTTON_PAGE7 = '7'
+CALLBACK_BUTTON_PAGE8 = '8'
+CALLBACK_BUTTON_PAGE9 = '9'
+CALLBACK_BUTTON_PAGE10 = '10'
 CALLBACK_BUTTON_HIDE_KEYBOARD = "callback_button_hide"
 CALLBACK_BUTTON_PREV_WEEK = 'callback_button_prev_week'
 CALLBACK_BUTTON_NEXT_WEEK = 'callback_button_next_week'
@@ -52,6 +51,16 @@ TITLES = {
     CALLBACK_BUTTON_MESSAGES: "Сообщения ",
     CALLBACK_BUTTON_PREV_WEEK: "⬅️",
     CALLBACK_BUTTON_NEXT_WEEK: "➡️",
+    CALLBACK_BUTTON_PAGE1: '1',
+    CALLBACK_BUTTON_PAGE2: '2',
+    CALLBACK_BUTTON_PAGE3: '3',
+    CALLBACK_BUTTON_PAGE4: '4',
+    CALLBACK_BUTTON_PAGE5: '5',
+    CALLBACK_BUTTON_PAGE6: '6',
+    CALLBACK_BUTTON_PAGE7: '7',
+    CALLBACK_BUTTON_PAGE8: '8',
+    CALLBACK_BUTTON_PAGE9: '9',
+    CALLBACK_BUTTON_PAGE10: '10'
 }
 
 
@@ -61,13 +70,13 @@ def get_messages_keyboard():
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE1], callback_data=CALLBACK_BUTTON_PAGE1),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE2], callback_data=CALLBACK_BUTTON_PAGE2),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE3], callback_data=CALLBACK_BUTTON_PAGE3),
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE4], callback_data=CALLBACK_BUTTON_PAGE4),
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE4], callback_data=CALLBACK_BUTTON_PAGE4)
         ],
         [
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE5], callback_data=CALLBACK_BUTTON_PAGE5),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE6], callback_data=CALLBACK_BUTTON_PAGE6),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE7], callback_data=CALLBACK_BUTTON_PAGE7),
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE8], callback_data=CALLBACK_BUTTON_PAGE8),
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE8], callback_data=CALLBACK_BUTTON_PAGE8)
         ],
         [
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PREV_WEEK], callback_data=CALLBACK_BUTTON_PREV_PAGE),
@@ -88,7 +97,7 @@ def get_base_reply_keyboard():
     ]
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
-        resize_keyboard=True,
+        resize_keyboard=True
     )
 
 
@@ -130,6 +139,6 @@ def get_schedule():
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PREV_WEEK], callback_data=CALLBACK_BUTTON_PREV_WEEK),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON4_BACK], callback_data=CALLBACK_BUTTON4_BACK),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_NEXT_WEEK], callback_data=CALLBACK_BUTTON_NEXT_WEEK)
-        ],
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
