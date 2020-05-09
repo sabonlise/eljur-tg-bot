@@ -19,20 +19,21 @@ from methods.crypto import password_encrypt
 messages_storage = {}
 
 
-def max_page_user(update: Update, context: CallbackContext):
+def max_page_user(update: Update, context: CallbackContext) -> tuple:
     chat_id = update.effective_message.chat_id
     try:
-        return messages_storage[chat_id]['max_page']
+        return messages_storage[chat_id]['max_part_page'], messages_storage[chat_id]['max_page']
     except KeyError:
         login, password = get_logpass(update=update, context=context)
         session = requests.Session()
         auth(session, login, password)
-        max_pages = get_max_pages(session)
-        messages_storage[chat_id]['max_page'] = max_pages
-        return messages_storage[chat_id]['max_page']
+        max_part_page, max_page = get_max_pages(session)
+        messages_storage[chat_id]['max_page'] = max_page
+        messages_storage[chat_id]['max_part_page'] = max_part_page
+        return messages_storage[chat_id]['max_part_page'], messages_storage[chat_id]['max_page']
 
 
-def save_messages(type: str, update: Update, context: CallbackContext):
+def save_messages(type: str, update: Update, context: CallbackContext) -> list:
     # val 0 = message info
     # val 1 = full message
     if type == 'info':
@@ -42,21 +43,25 @@ def save_messages(type: str, update: Update, context: CallbackContext):
 
     chat_id = update.effective_message.chat_id
     page = messages_storage[chat_id]['page']
+    part = messages_storage[chat_id]['part']
+
     try:
-        return messages_storage[chat_id][page][val]
+        session = messages_storage[chat_id]['session']
     except KeyError:
         session = requests.Session()
         login, password = get_logpass(update=update, context=context)
         auth(session, login, password)
-        messages = get_inbox_messages(session, page=page)
-        info = get_message_info(messages)
-        content = get_messages_content(messages)
-        messages_storage[chat_id][page] = [info[:10]]
-        messages_storage[chat_id][page].append(content[:10])
-        return messages_storage[chat_id][page][val]
+        messages_storage[chat_id]['session'] = session
+
+    messages = get_inbox_messages(session, page=page, part=part)
+    info = get_message_info(messages)
+    content = get_messages_content(messages)
+    messages_storage[chat_id][page] = [info]
+    messages_storage[chat_id][page].append(content)
+    return messages_storage[chat_id][page][val]
 
 
-def change_buttons(update: Update, context: CallbackContext):
+def change_buttons(update: Update, context: CallbackContext) -> None:
     schedule = save_schedule(update=update, context=context)
     week_days = list(schedule.keys())
     TITLES[CALLBACK_BUTTON5_MONDAY] = week_days[0]
@@ -76,7 +81,7 @@ def user_exists(update: Update, context: CallbackContext):
     return False
 
 
-def get_logpass(update: Update, context: CallbackContext):
+def get_logpass(update: Update, context: CallbackContext) -> tuple:
     chat_id = update.effective_message.chat_id
     session_db = db_session.create_session()
     user = session_db.query(User).filter(User.telegram_id == chat_id).first()
@@ -139,19 +144,23 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         storage[chat_id]['week_state'] -= 1
         if storage[chat_id]['week_state'] < -1:
             storage[chat_id]['week_state'] = -1
+
         text = 'Расписание за <i>предыдущую</i> неделю.' \
             if storage[chat_id]['week_state'] == -1 \
             else 'Расписание за <i>текущую</i> неделю.'
         change_buttons(update=update, context=context)
+
         query.edit_message_text(
             text=text,
             parse_mode=ParseMode.HTML,
             reply_markup=get_schedule()
         )
     elif data == CALLBACK_BUTTON_MESSAGES:
-        messages_storage[chat_id] = {'page': 1}
+        messages_storage[chat_id] = {'page': 1, 'part': 1}
+
         info = save_messages('info', update=update, context=context)
-        max_page = max_page_user(update=update, context=context)
+        max_page, _ = max_page_user(update=update, context=context)
+
         context.bot.send_message(
             chat_id=chat_id,
             text=f"Страница "
@@ -160,28 +169,47 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON_PREV_PAGE:
-        messages_storage[chat_id]['page'] -= 1
-        max_page = max_page_user(update=update, context=context)
-        if messages_storage[chat_id]['page'] < 1:
-            messages_storage[chat_id]['page'] = 1
+        messages_storage[chat_id]['part'] -= 1
+        if messages_storage[chat_id]['part'] < 1:
+            messages_storage[chat_id]['part'] = 2
+            messages_storage[chat_id]['page'] -= 1
+
+        max_part_page, max_page = max_page_user(update=update, context=context)
+        current_page = messages_storage[chat_id]['page'] * 2 + (messages_storage[chat_id]['part'] - 2)
+        if current_page < 1:
+            messages_storage[chat_id]['page'] = max_page
+            if max_part_page % 2:
+                messages_storage[chat_id]['part'] = 1
+            else:
+                messages_storage[chat_id]['part'] = 2
+            current_page = max_part_page
+
         info = save_messages('info', update=update, context=context)
         context.bot.send_message(
             chat_id=chat_id,
             text=f"Страница "
-                 f"<b>{messages_storage[chat_id]['page']}/{max_page}</b>\n" + "\n".join(info),
+                 f"<b>{current_page}/{max_part_page}</b>\n" + "\n".join(info),
             reply_markup=get_messages_keyboard(),
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON_NEXT_PAGE:
-        max_page = max_page_user(update=update, context=context)
-        messages_storage[chat_id]['page'] += 1
-        if messages_storage[chat_id]['page'] > max_page:
-            messages_storage[chat_id]['page'] = max_page
+        messages_storage[chat_id]['part'] += 1
+        if messages_storage[chat_id]['part'] > 2:
+            messages_storage[chat_id]['part'] = 1
+            messages_storage[chat_id]['page'] += 1
+
+        max_part_page, max_page = max_page_user(update=update, context=context)
+        current_page = messages_storage[chat_id]['page'] * 2 + (messages_storage[chat_id]['part'] - 2)
+        if current_page > max_part_page:
+            messages_storage[chat_id]['page'] = 1
+            messages_storage[chat_id]['part'] = 1
+            current_page = 1
+
         info = save_messages('info', update=update, context=context)
         context.bot.send_message(
             chat_id=chat_id,
             text=f"Страница "
-                 f"<b>{messages_storage[chat_id]['page']}/{max_page}</b>\n" + "\n".join(info),
+                 f"<b>{current_page}/{max_part_page}</b>\n" + "\n".join(info),
             reply_markup=get_messages_keyboard(),
             parse_mode=ParseMode.HTML
         )
@@ -191,7 +219,12 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
                   CALLBACK_BUTTON_PAGE7, CALLBACK_BUTTON_PAGE8,
                   CALLBACK_BUTTON_PAGE9, CALLBACK_BUTTON_PAGE10):
         content = save_messages('full', update=update, context=context)
-        output = content[int(data) - 1]
+
+        try:
+            output = content[int(data) - 1]
+        except IndexError:
+            output = 'Сообщение не найдено!'
+
         context.bot.send_message(
             chat_id=chat_id,
             text=output,
