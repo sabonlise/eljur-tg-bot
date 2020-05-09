@@ -21,8 +21,4 @@ def mark_parse():
                 marks[row[0]][i] = int(marks[row[0]][i])
             except Exception:
                 pass
-    print(marks)
-
-
-if __name__ == '__main__':
-    main()
+    return marks
