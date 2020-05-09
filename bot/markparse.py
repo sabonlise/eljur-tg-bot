@@ -3,8 +3,7 @@ import requests
 import xlrd
 
 
-def mark_parse():
-    session = requests.Session()
+def mark_parse(session: requests.Session, context: CallbackContext):
     auth(session, 'login', 'password')
     headers = {'user-agent': 'Mozilla/5.0'}
     r = session.get('https://gym40.eljur.ru/journal-app/view.journal/?mode=excel', stream=True, headers=headers)
