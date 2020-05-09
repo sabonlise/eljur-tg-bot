@@ -1,10 +1,9 @@
-from methods.authorization import auth
 import requests
 import xlrd
+import os
 
 
-def mark_parse(session: requests.Session, context: CallbackContext):
-    auth(session, 'login', 'password')
+def mark_parse(session: requests.Session) -> dict:
     headers = {'user-agent': 'Mozilla/5.0'}
     r = session.get('https://gym40.eljur.ru/journal-app/view.journal/?mode=excel', stream=True, headers=headers)
     with open('table_of_marks.xls', 'wb') as f:
@@ -20,4 +19,5 @@ def mark_parse(session: requests.Session, context: CallbackContext):
                 marks[row[0]][i] = int(marks[row[0]][i])
             except Exception:
                 pass
+    os.remove('table_of_marks.xls')
     return marks
