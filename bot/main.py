@@ -1,24 +1,31 @@
 import secrets
 
-from sqlalchemy import exc
-
 from telegram import ParseMode
 from telegram import ReplyKeyboardRemove
+from telegram import Update
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler
 from telegram.ext import Filters
+from telegram.ext import CallbackContext
 from telegram.ext import CallbackQueryHandler
+
+from data import db_session
+from data.users import User
 
 from bot.schedule import *
 from bot.keyboard import *
 from bot.settings import TOKEN, REQUEST_KWARGS
 
 from methods.authorization import auth
+from methods.crypto import password_encrypt, password_decrypt
+from methods.testings import get_current_tests
 from methods.messages import get_inbox_messages, get_max_pages, get_message_info, get_messages_content
-from methods.crypto import password_encrypt
 
 messages_storage = {}
+user_storage = {}
+tests_storage = {}
+storage = {}
 
 
 def max_page_user(update: Update, context: CallbackContext) -> tuple:
@@ -26,13 +33,39 @@ def max_page_user(update: Update, context: CallbackContext) -> tuple:
     try:
         return messages_storage[chat_id]['max_part_page'], messages_storage[chat_id]['max_page']
     except KeyError:
-        login, password = get_logpass(update=update, context=context)
-        session = requests.Session()
-        auth(session, login, password)
+        session = get_session(update=update, context=context)
         max_part_page, max_page = get_max_pages(session)
         messages_storage[chat_id]['max_page'] = max_page
         messages_storage[chat_id]['max_part_page'] = max_part_page
         return messages_storage[chat_id]['max_part_page'], messages_storage[chat_id]['max_page']
+
+
+def get_session(update: Update, context: CallbackContext):
+    chat_id = update.effective_message.chat_id
+    try:
+        return user_storage[chat_id]['session']
+    except KeyError:
+        session = requests.Session()
+        login, password = get_logpass(update=update, context=context)
+        auth(session, login, password)
+        user_storage[chat_id]['session'] = session
+        return user_storage[chat_id]['session']
+
+
+def save_schedule(update: Update, context: CallbackContext) -> dict:
+    chat_id = update.effective_message.chat_id
+    state = storage[chat_id]['week_state']
+    try:
+        return storage[chat_id][state]
+    except KeyError:
+        session = get_session(update=update, context=context)
+        prev_week = get_full_journal_week(session, -1)
+        next_week = get_full_journal_week(session, 1)
+        current_week = get_full_journal_week(session)
+        storage[chat_id][-1] = get_lessons(prev_week)
+        storage[chat_id][1] = get_lessons(next_week)
+        storage[chat_id][0] = get_lessons(current_week)
+        return storage[chat_id][state]
 
 
 def save_messages(type: str, update: Update, context: CallbackContext) -> list:
@@ -47,13 +80,7 @@ def save_messages(type: str, update: Update, context: CallbackContext) -> list:
     page = messages_storage[chat_id]['page']
     part = messages_storage[chat_id]['part']
 
-    try:
-        session = messages_storage[chat_id]['session']
-    except KeyError:
-        session = requests.Session()
-        login, password = get_logpass(update=update, context=context)
-        auth(session, login, password)
-        messages_storage[chat_id]['session'] = session
+    session = get_session(update=update, context=context)
 
     messages = get_inbox_messages(session, page=page, part=part)
     info = get_message_info(messages)
@@ -115,6 +142,17 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             text="Пропуски за текущий период:\n",
             reply_markup=get_base_inline_keyboard()
         )
+    elif data == CALLBACK_BUTTON_TESTS:
+        if chat_id not in user_storage:
+            user_storage[chat_id] = {}
+        session = get_session(update=update, context=context)
+        tests = get_current_tests(session)
+        print(tests)
+        context.bot.send_message(
+            chat_id=chat_id,
+            text='\n'.join(tests),
+            reply_markup=get_base_inline_keyboard()
+        )
     elif data == CALLBACK_BUTTON3_SCHEDULE:
         storage[chat_id] = {'week_state': 0}
         change_buttons(update=update, context=context)
@@ -159,6 +197,9 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         )
     elif data == CALLBACK_BUTTON_MESSAGES:
         messages_storage[chat_id] = {'page': 1, 'part': 1}
+        if chat_id not in user_storage:
+            print(1)
+            user_storage[chat_id] = {}
 
         info = save_messages('info', update=update, context=context)
         max_page, _ = max_page_user(update=update, context=context)
@@ -360,11 +401,8 @@ def echo(update: Update, context: CallbackContext):
 
 
 def main():
-    # путь до папки с бд (сама бд создастся автоматически)
-    try:
-        db_session.global_init('..\\db\\users.sqlite')
-    except exc.OperationalError:
-        print('Указан неверный путь к папке с базой данных.')
+    # путь до бд
+    db_session.global_init('E:\\web-server\\db\\users.sqlite')
     # токен от бота и прокси сервер из файла settings
     updater = Updater(
         token=TOKEN,
