@@ -3,7 +3,7 @@ import requests
 import xlrd
 
 
-def main():
+def mark_parse():
     session = requests.Session()
     auth(session, 'login', 'password')
     headers = {'user-agent': 'Mozilla/5.0'}
