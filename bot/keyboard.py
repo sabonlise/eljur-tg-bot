@@ -92,6 +92,9 @@ def get_messages_keyboard():
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE9], callback_data=CALLBACK_BUTTON_PAGE9),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_PAGE10], callback_data=CALLBACK_BUTTON_PAGE10),
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_NEXT_WEEK], callback_data=CALLBACK_BUTTON_NEXT_PAGE)
+        ],
+        [
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON4_BACK], callback_data=CALLBACK_BUTTON4_BACK)
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
