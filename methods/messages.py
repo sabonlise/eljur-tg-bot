@@ -1,6 +1,5 @@
 from math import ceil
 import requests
-from methods    .authorization import auth
 
 
 def get_inbox_messages(session: requests.Session, page=1, part=1) -> list:
@@ -69,8 +68,3 @@ def get_messages_content(messages: list) -> list:
                            f'<strong>Сообщение:</strong>\n'
                            f'<code>{msg}</code>\n\n')
     return content
-
-
-"""session = requests.Session()
-auth(session, 'soralin', 'device12')
-print(get_inbox_messages(session, 5, 1))"""
