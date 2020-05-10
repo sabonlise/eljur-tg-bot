@@ -430,10 +430,17 @@ def start(update: Update, context: CallbackContext):
 
 
 def help(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        text=HELP,
-        reply_markup=get_base_inline_keyboard()
-    )
+    if user_exists(update=update, context=context):
+        update.message.reply_text(
+            text=HELP,
+            reply_markup=get_base_inline_keyboard()
+        )
+    else:
+        update.message.reply_text(
+            text="Вы ещё не авторизованы! Для авторизации введите логин и пароль через команду /login "
+                 "в формате\n/login <login> <password>",
+            reply_markup=get_base_reply_keyboard()
+        )
 
 
 def echo(update: Update, context: CallbackContext):
