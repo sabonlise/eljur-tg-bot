@@ -5,13 +5,15 @@ from telegram import InlineKeyboardMarkup
 
 from bot.settings import CHAT_URL
 
-HELP = "Доступные команды:\n/login <login> <password> - авторизация.\n " \
+HELP = "Доступные команды:\n/login <login> <password> - авторизация.\n" \
        "/relogin <password> <password again> - смена пароля в боте если вы сменили пароль в элжуре.\n\n" \
        "Кнопки:\n" \
        "📩 Сообщения - входящие сообщения.\n" \
        "🎓 Оценки - Ваши оценки за текущий период.\n" \
        "📖 Дневник - Домашние задания за предыдущую, текущую и следующую неделю по всем предметам.\n" \
-       "❌ Пропуски - Ваши пропуски за текущий период."
+       "❌ Пропуски - Ваши пропуски за текущий период.\n" \
+       "🗿 Контрольные работы - график контрольных работ за текущий месяц.\n" \
+       "🗯 Чат - телеграм-чат с учениками."
 BUTTON1_HELP = "Помощь"
 BUTTON2_CONTACTS = "Контакты"
 
@@ -25,6 +27,7 @@ CALLBACK_BUTTON_PAGE7 = '7'
 CALLBACK_BUTTON_PAGE8 = '8'
 CALLBACK_BUTTON_PAGE9 = '9'
 CALLBACK_BUTTON_PAGE10 = '10'
+CALLBACK_BUTTON_TESTS = 'callback_button_tests'
 CALLBACK_BUTTON_HIDE_KEYBOARD = "callback_button_hide"
 CALLBACK_BUTTON_RETURN_KEYBOARD = "callback_button_return"
 CALLBACK_BUTTON_PREV_WEEK = 'callback_button_prev_week'
@@ -60,6 +63,7 @@ TITLES = {
     CALLBACK_BUTTON_MESSAGES: "Сообщения ",
     CALLBACK_BUTTON_PREV_WEEK: "⬅️",
     CALLBACK_BUTTON_NEXT_WEEK: "➡️",
+    CALLBACK_BUTTON_TESTS: "Контрольные работы",
     CALLBACK_BUTTON_PAGE1: '1',
     CALLBACK_BUTTON_PAGE2: '2',
     CALLBACK_BUTTON_PAGE3: '3',
@@ -124,7 +128,8 @@ def get_base_inline_keyboard():
             InlineKeyboardButton('Чат', url=CHAT_URL)
         ],
         [
-            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_MESSAGES], callback_data=CALLBACK_BUTTON_MESSAGES)
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_MESSAGES], callback_data=CALLBACK_BUTTON_MESSAGES),
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_TESTS], callback_data=CALLBACK_BUTTON_TESTS)
         ],
         [
             InlineKeyboardButton(TITLES[CALLBACK_BUTTON_HIDE_KEYBOARD], callback_data=CALLBACK_BUTTON_HIDE_KEYBOARD),
