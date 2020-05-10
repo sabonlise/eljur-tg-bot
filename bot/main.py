@@ -14,7 +14,6 @@ from telegram.ext import CallbackQueryHandler
 from data import db_session
 from data.users import User
 
-from bot.schedule import *
 from bot.keyboard import *
 from bot.settings import TOKEN, REQUEST_KWARGS
 
@@ -22,6 +21,7 @@ from methods.authorization import auth
 from methods.testings import get_current_tests
 from methods.crypto import password_encrypt, password_decrypt
 from methods.marks import mark_parse, get_correct_marks, get_average
+from methods.journal import get_full_journal_week, get_lessons, save_formatted_schedule
 from methods.messages import get_all_messages, get_max_pages, get_messages_info, get_messages_content
 
 
@@ -33,7 +33,7 @@ storage = {}
 
 def get_marks(update: Update, context: CallbackContext):
     session = get_session(update=update, context=context)
-    
+
     marks = mark_parse(session)
     current_marks = get_correct_marks(marks)
     subjects = list(current_marks.keys())
@@ -84,15 +84,15 @@ def save_schedule(update: Update, context: CallbackContext) -> dict:
         return storage[chat_id][state]
     except KeyError:
         session = get_session(update=update, context=context)
-        
+
         prev_week = get_full_journal_week(session, -1)
         next_week = get_full_journal_week(session, 1)
         current_week = get_full_journal_week(session)
-        
+
         storage[chat_id][-1] = get_lessons(prev_week)
         storage[chat_id][1] = get_lessons(next_week)
         storage[chat_id][0] = get_lessons(current_week)
-        
+
         return storage[chat_id][state]
 
 
@@ -114,17 +114,17 @@ def save_messages(type: str, update: Update, context: CallbackContext) -> list:
     messages = get_all_messages(session, page=page, part=part, msg_type=msg_type)
     info = get_messages_info(messages, msg_type=msg_type)
     content = get_messages_content(messages, msg_type=msg_type)
-    
+
     messages_storage[chat_id][page] = [info]
     messages_storage[chat_id][page].append(content)
-    
+
     return messages_storage[chat_id][page][val]
 
 
 def change_buttons(update: Update, context: CallbackContext) -> None:
     schedule = save_schedule(update=update, context=context)
     week_days = list(schedule.keys())
-    
+
     TITLES[CALLBACK_BUTTON5_MONDAY] = week_days[0]
     TITLES[CALLBACK_BUTTON6_THURSDAY] = week_days[3]
     TITLES[CALLBACK_BUTTON7_TUESDAY] = week_days[1]
@@ -142,7 +142,7 @@ def user_exists(update: Update, context: CallbackContext):
 
 def get_logpass(update: Update, context: CallbackContext) -> tuple:
     chat_id = update.effective_message.chat_id
-    
+
     session_db = db_session.create_session()
     user = session_db.query(User).filter(User.telegram_id == chat_id).first()
     login = user.name
@@ -251,7 +251,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         )
     elif data == CALLBACK_BUTTON_SENT:
         messages_storage[chat_id] = {'page': 1, 'part': 1, 'msg_type': 'sent'}
-        
+
         info = save_messages('info', update=update, context=context)
         max_page, _ = max_page_user(update=update, context=context)
 
@@ -384,12 +384,12 @@ def echo(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     text = update.message.text
     if text == 'Помощь':
-        return help(update=update, 
+        return help(update=update,
                     context=context)
     elif text == 'Контакты':
         update.message.reply_text(text='Связь с разработчиками: @millionware и @ZERoN11')
     elif text.startswith('/login'):
-        if user_exists(update=update, 
+        if user_exists(update=update,
                        context=context):
             reply_text = 'Вы уже авторизованы! Если вы сменили пароль, ты повторите процедуру через ' \
                          'команду /relogin.\n\t\t\t' \
@@ -399,20 +399,20 @@ def echo(update: Update, context: CallbackContext):
             try:
                 logpass = text.split()
                 login, password = logpass[1], logpass[2]
-                
+
                 session = requests.Session()
                 auth(session, login, password)
-                
+
                 user = User()
                 user.telegram_id = chat_id
                 user.name = login
                 user.hash = secrets.token_bytes(32)
                 user.hashed_password = password_encrypt(password.encode(), user.hash)
-                
+
                 session_db = db_session.create_session()
                 session_db.add(user)
                 session_db.commit()
-                
+
                 reply_text = 'Успешная авторизация!'
                 keyboard = get_base_inline_keyboard()
             except (ValueError, IndexError):
@@ -423,18 +423,18 @@ def echo(update: Update, context: CallbackContext):
             reply_markup=keyboard,
         )
     elif text.startswith('/relogin'):
-        if not user_exists(update=update, 
+        if not user_exists(update=update,
                            context=context):
             reply_text = 'Вы не можете использовать эту команду, так как не авторизовывались ранее.'
             keyboard = get_base_reply_keyboard()
         else:
             try:
                 session_db = db_session.create_session()
-                
+
                 password = text.split()
                 password1, password2 = password[1], password[2]
                 assert password1 == password2, 'Пароли не совпадают!'
-                
+
                 session = requests.Session()
                 user = session_db.query(User).filter(User.telegram_id == chat_id).first()
                 old_password = password_decrypt(user.hashed_password, user.hash).decode()
@@ -446,7 +446,7 @@ def echo(update: Update, context: CallbackContext):
                     user.hash = secrets.token_bytes(32)
                     user.hashed_password = password_encrypt(password1.encode(), user.hash)
                     session_db.commit()
-                    
+
                     reply_text = 'Пароль успешно изменен!'
                     keyboard = get_base_inline_keyboard()
             except AssertionError as e:
