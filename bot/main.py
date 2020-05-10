@@ -1,28 +1,39 @@
 import secrets
-from sqlalchemy import exc
+import requests
+from sqlalchemy            import exc
 
-from telegram import Update
-from telegram import ParseMode
-from telegram.ext import Filters
-from telegram.ext import Updater
-from telegram.ext import CommandHandler
-from telegram.ext import MessageHandler
-from telegram.ext import CallbackContext
-from telegram import ReplyKeyboardRemove
-from telegram.ext import CallbackQueryHandler
+from telegram              import Update
+from telegram              import ParseMode
+from telegram.ext          import Filters
+from telegram.ext          import Updater
+from telegram.ext          import CommandHandler
+from telegram.ext          import MessageHandler
+from telegram.ext          import CallbackContext
+from telegram              import ReplyKeyboardRemove
+from telegram.ext          import CallbackQueryHandler
 
-from data import db_session
-from data.users import User
+from data                  import db_session
+from data.users            import User
 
-from bot.keyboard import *
-from bot.settings import TOKEN, REQUEST_KWARGS
+from bot.keyboard          import *
+from bot.settings          import TOKEN
+from bot.settings          import REQUEST_KWARGS
 
+from methods.marks         import mark_parse
+from methods.misses        import get_misses
+from methods.marks         import get_average
 from methods.authorization import auth
-from methods.testings import get_current_tests
-from methods.crypto import password_encrypt, password_decrypt
-from methods.marks import mark_parse, get_correct_marks, get_average
-from methods.journal import get_full_journal_week, get_lessons, save_formatted_schedule
-from methods.messages import get_all_messages, get_max_pages, get_messages_info, get_messages_content
+from methods.journal       import get_lessons
+from methods.messages      import get_max_pages
+from methods.crypto        import password_decrypt
+from methods.crypto        import password_encrypt
+from methods.marks         import get_correct_marks
+from methods.messages      import get_all_messages
+from methods.messages      import get_messages_info
+from methods.testings      import get_current_tests
+from methods.journal       import get_full_journal_week
+from methods.messages      import get_messages_content
+from methods.journal       import save_formatted_schedule
 
 
 messages_storage = {}
@@ -31,7 +42,26 @@ tests_storage = {}
 storage = {}
 
 
+def save_misses(update: Update, context: CallbackContext):
+    """Вывод пропусков 'в виде таблицы'"""
+    session = get_session(update=update, context=context)
+
+    formatted = ''
+    misses_dictionary = get_misses(session)
+
+    for subject, misses in misses_dictionary.items():
+        misses = '\t\t\t\t '.join(misses)
+        if not subject[0].isupper():
+            subject = subject.capitalize()
+        formatted += "{0:<30} {1}".format(subject.capitalize(), misses) + "\n"
+
+    table = 'Б\t\t\t\t У\t\t\t\t Н'.rjust(44, ' ') + '\n'
+
+    return table + formatted
+
+
 def get_marks(update: Update, context: CallbackContext):
+    """Получение оценок в отформатированном виде"""
     session = get_session(update=update, context=context)
 
     marks = mark_parse(session)
@@ -53,8 +83,11 @@ def get_marks(update: Update, context: CallbackContext):
 
 
 def max_page_user(update: Update, context: CallbackContext) -> tuple:
+    """Получение количества страниц сообщений пользователя
+       разделённых по частям и с оригинальным оффсетом"""
     chat_id = update.effective_message.chat_id
     msg_type = messages_storage[chat_id]['msg_type']
+
     try:
         return messages_storage[chat_id]['max_part_page'], messages_storage[chat_id]['max_page']
     except KeyError:
@@ -66,6 +99,7 @@ def max_page_user(update: Update, context: CallbackContext) -> tuple:
 
 
 def get_session(update: Update, context: CallbackContext):
+    """Получение текущей пользовательской сессии"""
     chat_id = update.effective_message.chat_id
     try:
         return user_storage[chat_id]['session']
@@ -78,6 +112,7 @@ def get_session(update: Update, context: CallbackContext):
 
 
 def save_schedule(update: Update, context: CallbackContext) -> dict:
+    """Сохранение дневника в глобальном словаре"""
     chat_id = update.effective_message.chat_id
     state = storage[chat_id]['week_state']
     try:
@@ -97,6 +132,7 @@ def save_schedule(update: Update, context: CallbackContext) -> dict:
 
 
 def save_messages(type: str, update: Update, context: CallbackContext) -> list:
+    """Сохранение сообщений на текущей странице в глобальном словаре"""
     # val 0 = message info
     # val 1 = full message
     if type == 'info':
@@ -122,6 +158,7 @@ def save_messages(type: str, update: Update, context: CallbackContext) -> list:
 
 
 def change_buttons(update: Update, context: CallbackContext) -> None:
+    """Смена кнопок дней при открытии дневника"""
     schedule = save_schedule(update=update, context=context)
     week_days = list(schedule.keys())
 
@@ -134,6 +171,7 @@ def change_buttons(update: Update, context: CallbackContext) -> None:
 
 
 def user_exists(update: Update, context: CallbackContext):
+    """Проверка на то, существует ли уже юзер в бд"""
     session_db = db_session.create_session()
     chat_id = update.effective_message.chat_id
     user = session_db.query(User).filter(User.telegram_id == chat_id).first()
@@ -152,6 +190,7 @@ def get_logpass(update: Update, context: CallbackContext) -> tuple:
 
 
 def keyboard_callback_handler(update: Update, context: CallbackContext):
+    """Обработка кнопок со всех клавиатур"""
     chat_id = update.effective_message.chat_id
 
     query = update.callback_query
@@ -163,6 +202,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         user_storage[chat_id] = {}
 
     if data == CALLBACK_BUTTON1_MARKS:
+        # получение информации об оценках
         marks = get_marks(update=update, context=context)
         context.bot.send_message(
             chat_id=chat_id,
@@ -171,13 +211,16 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON2_SKIPS:
-        # тут будет информация о пропусках
+        # получение информации о пропусках
+        misses = save_misses(update=update, context=context)
         context.bot.send_message(
             chat_id=chat_id,
-            text="Пропуски за текущий период:\n",
-            reply_markup=get_base_inline_keyboard()
+            text="```" + misses + "```",
+            reply_markup=get_base_inline_keyboard(),
+            parse_mode=ParseMode.MARKDOWN
         )
     elif data == CALLBACK_BUTTON_TESTS:
+        # получение графика контрольных работ за текущий месяц
         session = get_session(update=update, context=context)
         tests = get_current_tests(session)
         context.bot.send_message(
@@ -186,6 +229,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             reply_markup=get_base_inline_keyboard()
         )
     elif data == CALLBACK_BUTTON3_SCHEDULE:
+        # получение дневника с домашнем заданием
         storage[chat_id] = {'week_state': 0}
         change_buttons(update=update, context=context)
         query.edit_message_text(
@@ -194,12 +238,14 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON4_BACK:
+        # кнопка возврата на главную клавиатуру
         context.bot.send_message(
             chat_id=chat_id,
             text="Вы вернулись назад.",
             reply_markup=get_base_inline_keyboard()
         )
     elif data == CALLBACK_BUTTON_NEXT_WEEK:
+        # предыдущая неделя в дневнике
         storage[chat_id]['week_state'] += 1
         if storage[chat_id]['week_state'] > 1:
             storage[chat_id]['week_state'] = 1
@@ -215,6 +261,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             reply_markup=get_schedule()
         )
     elif data == CALLBACK_BUTTON_PREV_WEEK:
+        # следующая неделя в дневнике
         storage[chat_id]['week_state'] -= 1
         if storage[chat_id]['week_state'] < -1:
             storage[chat_id]['week_state'] = -1
@@ -230,6 +277,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             reply_markup=get_schedule()
         )
     elif data == CALLBACK_BUTTON_MESSAGES:
+        # выбор типа сообщений
         context.bot.send_message(
             chat_id=chat_id,
             text='Выберите тип сообщений',
@@ -237,6 +285,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.MARKDOWN
         )
     elif data == CALLBACK_BUTTON_INBOX:
+        # получение входящих сообщений
         messages_storage[chat_id] = {'page': 1, 'part': 1, 'msg_type': 'inbox'}
 
         info = save_messages('info', update=update, context=context)
@@ -250,6 +299,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON_SENT:
+        # получение исходящих сообщений
         messages_storage[chat_id] = {'page': 1, 'part': 1, 'msg_type': 'sent'}
 
         info = save_messages('info', update=update, context=context)
@@ -263,6 +313,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON_PREV_PAGE:
+        # предыдущая страница сообщений
         messages_storage[chat_id]['part'] -= 1
         if messages_storage[chat_id]['part'] < 1:
             messages_storage[chat_id]['part'] = 2
@@ -287,6 +338,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON_NEXT_PAGE:
+        # следующая страница сообщений
         messages_storage[chat_id]['part'] += 1
         if messages_storage[chat_id]['part'] > 2:
             messages_storage[chat_id]['part'] = 1
@@ -312,6 +364,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
                   CALLBACK_BUTTON_PAGE5, CALLBACK_BUTTON_PAGE6,
                   CALLBACK_BUTTON_PAGE7, CALLBACK_BUTTON_PAGE8,
                   CALLBACK_BUTTON_PAGE9, CALLBACK_BUTTON_PAGE10):
+        # получение полной информации о сообщении
         content = save_messages('full', update=update, context=context)
 
         try:
@@ -329,6 +382,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
     elif data in (CALLBACK_BUTTON5_MONDAY, CALLBACK_BUTTON6_THURSDAY,
                   CALLBACK_BUTTON7_TUESDAY, CALLBACK_BUTTON8_FRIDAY,
                   CALLBACK_BUTTON9_WEDNESDAY, CALLBACK_BUTTON10_SATURDAY):
+        # получение дневника за конкретный день
         schedule = save_schedule(update=update, context=context)
         output = save_formatted_schedule(data, schedule)
 
@@ -339,6 +393,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON_HIDE_KEYBOARD:
+        # скрытие клавиатуры
         query.edit_message_text(
             parse_mode=ParseMode.HTML,
             reply_markup=get_base2_inline_keyboard(),
@@ -350,6 +405,7 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             reply_markup=ReplyKeyboardRemove()
         )
     elif data == CALLBACK_BUTTON_RETURN_KEYBOARD:
+        # возврат клавиатуры
         query.edit_message_text(
             parse_mode=ParseMode.HTML,
             reply_markup=get_base_inline_keyboard(),
@@ -389,6 +445,7 @@ def echo(update: Update, context: CallbackContext):
     elif text == 'Контакты':
         update.message.reply_text(text='Связь с разработчиками: @millionware и @ZERoN11')
     elif text.startswith('/login'):
+        # первичная авторизация пользователя
         if user_exists(update=update,
                        context=context):
             reply_text = 'Вы уже авторизованы! Если вы сменили пароль, ты повторите процедуру через ' \
@@ -423,6 +480,7 @@ def echo(update: Update, context: CallbackContext):
             reply_markup=keyboard,
         )
     elif text.startswith('/relogin'):
+        # смена пароля в случае если пользователь поменял его в электронном дневнике
         if not user_exists(update=update,
                            context=context):
             reply_text = 'Вы не можете использовать эту команду, так как не авторизовывались ранее.'
@@ -457,7 +515,7 @@ def echo(update: Update, context: CallbackContext):
                 reply_text = 'Неверный пароль.'
         update.message.reply_text(
             text=reply_text,
-            reply_markup=keyboard
+            reply_markup=keyboard,
         )
 
 
