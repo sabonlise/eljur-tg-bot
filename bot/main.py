@@ -1,4 +1,5 @@
 import secrets
+from sqlalchemy import exc
 
 from telegram import ParseMode
 from telegram import ReplyKeyboardRemove
@@ -17,6 +18,7 @@ from bot.schedule import *
 from bot.keyboard import *
 from bot.settings import TOKEN, REQUEST_KWARGS
 
+from methods.marks import mark_parse, get_correct_marks, get_average
 from methods.authorization import auth
 from methods.crypto import password_encrypt, password_decrypt
 from methods.testings import get_current_tests
@@ -26,6 +28,26 @@ messages_storage = {}
 user_storage = {}
 tests_storage = {}
 storage = {}
+
+
+def get_marks(update: Update, context: CallbackContext):
+    session = get_session(update=update, context=context)
+    marks = mark_parse(session)
+    current_marks = get_correct_marks(marks)
+    subjects = list(current_marks.keys())
+    max_subject_len = max(list(map(len, subjects)))
+    output = []
+
+    for subject, marks in current_marks.items():
+        if marks:
+            average = get_average(marks)
+            marks = '\t'.join(marks)
+            subject = subject.ljust(max_subject_len, ' ')
+            output.append(f'<b>{subject.capitalize()}</b> '
+                          f'(ср. балл <b>{average}</b>):\n'
+                          f'<code>{marks}</code>\n')
+
+    return output
 
 
 def max_page_user(update: Update, context: CallbackContext) -> tuple:
@@ -128,12 +150,16 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
 
     current_text = update.effective_message.text
 
+    if chat_id not in user_storage:
+        user_storage[chat_id] = {}
+
     if data == CALLBACK_BUTTON1_MARKS:
-        # тут будет информация об оценках
+        marks = get_marks(update=update, context=context)
         context.bot.send_message(
             chat_id=chat_id,
-            text="Оценки за текущий период:\n",
-            reply_markup=get_base_inline_keyboard()
+            text="\n".join(marks),
+            reply_markup=get_base_inline_keyboard(),
+            parse_mode=ParseMode.HTML
         )
     elif data == CALLBACK_BUTTON2_SKIPS:
         # тут будет информация о пропусках
@@ -143,11 +169,8 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             reply_markup=get_base_inline_keyboard()
         )
     elif data == CALLBACK_BUTTON_TESTS:
-        if chat_id not in user_storage:
-            user_storage[chat_id] = {}
         session = get_session(update=update, context=context)
         tests = get_current_tests(session)
-        print(tests)
         context.bot.send_message(
             chat_id=chat_id,
             text='\n'.join(tests),
@@ -197,9 +220,6 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         )
     elif data == CALLBACK_BUTTON_MESSAGES:
         messages_storage[chat_id] = {'page': 1, 'part': 1}
-        if chat_id not in user_storage:
-            print(1)
-            user_storage[chat_id] = {}
 
         info = save_messages('info', update=update, context=context)
         max_page, _ = max_page_user(update=update, context=context)
@@ -401,8 +421,11 @@ def echo(update: Update, context: CallbackContext):
 
 
 def main():
-    # путь до бд
-    db_session.global_init('E:\\web-server\\db\\users.sqlite')
+    # путь до папки с бд (сама бд создастся автоматически)
+    try:
+        db_session.global_init('..\\db\\users.sqlite')
+    except exc.OperationalError:
+        print('Указан неверный путь к папке с базой данных.')
     # токен от бота и прокси сервер из файла settings
     updater = Updater(
         token=TOKEN,
