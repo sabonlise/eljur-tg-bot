@@ -14,6 +14,7 @@ HELP = "Доступные команды:\n/login <login> <password> - авто
        "❌ Пропуски - Ваши пропуски за текущий период.\n" \
        "🗿 Контрольные работы - график контрольных работ за текущий месяц.\n" \
        "🗯 Чат - телеграм-чат с учениками."
+
 BUTTON1_HELP = "Помощь"
 BUTTON2_CONTACTS = "Контакты"
 
@@ -27,6 +28,8 @@ CALLBACK_BUTTON_PAGE7 = '7'
 CALLBACK_BUTTON_PAGE8 = '8'
 CALLBACK_BUTTON_PAGE9 = '9'
 CALLBACK_BUTTON_PAGE10 = '10'
+CALLBACK_BUTTON_INBOX = 'inbox'
+CALLBACK_BUTTON_SENT = 'sent'
 CALLBACK_BUTTON_TESTS = 'callback_button_tests'
 CALLBACK_BUTTON_HIDE_KEYBOARD = "callback_button_hide"
 CALLBACK_BUTTON_RETURN_KEYBOARD = "callback_button_return"
@@ -61,6 +64,8 @@ TITLES = {
     CALLBACK_BUTTON_HIDE_KEYBOARD: "Скрыть клавиатуру ",
     CALLBACK_BUTTON_RETURN_KEYBOARD: "Вернуть клавиатуру ",
     CALLBACK_BUTTON_MESSAGES: "Сообщения ",
+    CALLBACK_BUTTON_INBOX: "Входящие",
+    CALLBACK_BUTTON_SENT: "Исходящие",
     CALLBACK_BUTTON_PREV_WEEK: "⬅️",
     CALLBACK_BUTTON_NEXT_WEEK: "➡️",
     CALLBACK_BUTTON_TESTS: "Контрольные работы",
@@ -75,6 +80,19 @@ TITLES = {
     CALLBACK_BUTTON_PAGE9: '9',
     CALLBACK_BUTTON_PAGE10: '10'
 }
+
+
+def get_messages_type_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_INBOX], callback_data=CALLBACK_BUTTON_INBOX),
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON_SENT], callback_data=CALLBACK_BUTTON_SENT)
+        ],
+        [
+            InlineKeyboardButton(TITLES[CALLBACK_BUTTON4_BACK], callback_data=CALLBACK_BUTTON4_BACK)
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 
 def get_messages_keyboard():
