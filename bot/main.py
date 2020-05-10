@@ -1,14 +1,14 @@
 import secrets
 from sqlalchemy import exc
 
-from telegram import ParseMode
-from telegram import ReplyKeyboardRemove
 from telegram import Update
+from telegram import ParseMode
+from telegram.ext import Filters
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler
-from telegram.ext import Filters
 from telegram.ext import CallbackContext
+from telegram import ReplyKeyboardRemove
 from telegram.ext import CallbackQueryHandler
 
 from data import db_session
@@ -18,11 +18,12 @@ from bot.schedule import *
 from bot.keyboard import *
 from bot.settings import TOKEN, REQUEST_KWARGS
 
-from methods.marks import mark_parse, get_correct_marks, get_average
 from methods.authorization import auth
-from methods.crypto import password_encrypt, password_decrypt
 from methods.testings import get_current_tests
-from methods.messages import get_inbox_messages, get_max_pages, get_message_info, get_messages_content
+from methods.crypto import password_encrypt, password_decrypt
+from methods.marks import mark_parse, get_correct_marks, get_average
+from methods.messages import get_all_messages, get_max_pages, get_messages_info, get_messages_content
+
 
 messages_storage = {}
 user_storage = {}
@@ -32,6 +33,7 @@ storage = {}
 
 def get_marks(update: Update, context: CallbackContext):
     session = get_session(update=update, context=context)
+    
     marks = mark_parse(session)
     current_marks = get_correct_marks(marks)
     subjects = list(current_marks.keys())
@@ -52,11 +54,12 @@ def get_marks(update: Update, context: CallbackContext):
 
 def max_page_user(update: Update, context: CallbackContext) -> tuple:
     chat_id = update.effective_message.chat_id
+    msg_type = messages_storage[chat_id]['msg_type']
     try:
         return messages_storage[chat_id]['max_part_page'], messages_storage[chat_id]['max_page']
     except KeyError:
         session = get_session(update=update, context=context)
-        max_part_page, max_page = get_max_pages(session)
+        max_part_page, max_page = get_max_pages(session, msg_type)
         messages_storage[chat_id]['max_page'] = max_page
         messages_storage[chat_id]['max_part_page'] = max_part_page
         return messages_storage[chat_id]['max_part_page'], messages_storage[chat_id]['max_page']
@@ -81,12 +84,15 @@ def save_schedule(update: Update, context: CallbackContext) -> dict:
         return storage[chat_id][state]
     except KeyError:
         session = get_session(update=update, context=context)
+        
         prev_week = get_full_journal_week(session, -1)
         next_week = get_full_journal_week(session, 1)
         current_week = get_full_journal_week(session)
+        
         storage[chat_id][-1] = get_lessons(prev_week)
         storage[chat_id][1] = get_lessons(next_week)
         storage[chat_id][0] = get_lessons(current_week)
+        
         return storage[chat_id][state]
 
 
@@ -104,17 +110,21 @@ def save_messages(type: str, update: Update, context: CallbackContext) -> list:
 
     session = get_session(update=update, context=context)
 
-    messages = get_inbox_messages(session, page=page, part=part)
-    info = get_message_info(messages)
-    content = get_messages_content(messages)
+    msg_type = messages_storage[chat_id]['msg_type']
+    messages = get_all_messages(session, page=page, part=part, msg_type=msg_type)
+    info = get_messages_info(messages, msg_type=msg_type)
+    content = get_messages_content(messages, msg_type=msg_type)
+    
     messages_storage[chat_id][page] = [info]
     messages_storage[chat_id][page].append(content)
+    
     return messages_storage[chat_id][page][val]
 
 
 def change_buttons(update: Update, context: CallbackContext) -> None:
     schedule = save_schedule(update=update, context=context)
     week_days = list(schedule.keys())
+    
     TITLES[CALLBACK_BUTTON5_MONDAY] = week_days[0]
     TITLES[CALLBACK_BUTTON6_THURSDAY] = week_days[3]
     TITLES[CALLBACK_BUTTON7_TUESDAY] = week_days[1]
@@ -127,13 +137,12 @@ def user_exists(update: Update, context: CallbackContext):
     session_db = db_session.create_session()
     chat_id = update.effective_message.chat_id
     user = session_db.query(User).filter(User.telegram_id == chat_id).first()
-    if user:
-        return True
-    return False
+    return bool(user)
 
 
 def get_logpass(update: Update, context: CallbackContext) -> tuple:
     chat_id = update.effective_message.chat_id
+    
     session_db = db_session.create_session()
     user = session_db.query(User).filter(User.telegram_id == chat_id).first()
     login = user.name
@@ -194,10 +203,12 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
         storage[chat_id]['week_state'] += 1
         if storage[chat_id]['week_state'] > 1:
             storage[chat_id]['week_state'] = 1
+
         text = 'Расписание за <i>следующую</i> неделю.' \
             if storage[chat_id]['week_state'] == 1 \
             else 'Расписание за <i>текущую</i> неделю.'
         change_buttons(update=update, context=context)
+
         query.edit_message_text(
             text=text,
             parse_mode=ParseMode.HTML,
@@ -219,8 +230,28 @@ def keyboard_callback_handler(update: Update, context: CallbackContext):
             reply_markup=get_schedule()
         )
     elif data == CALLBACK_BUTTON_MESSAGES:
-        messages_storage[chat_id] = {'page': 1, 'part': 1}
+        context.bot.send_message(
+            chat_id=chat_id,
+            text='Выберите тип сообщений',
+            reply_markup=get_messages_type_keyboard(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    elif data == CALLBACK_BUTTON_INBOX:
+        messages_storage[chat_id] = {'page': 1, 'part': 1, 'msg_type': 'inbox'}
 
+        info = save_messages('info', update=update, context=context)
+        max_page, _ = max_page_user(update=update, context=context)
+
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"Страница "
+                 f"<b>1/{max_page}</b>\n" + "\n".join(info),
+            reply_markup=get_messages_keyboard(),
+            parse_mode=ParseMode.HTML
+        )
+    elif data == CALLBACK_BUTTON_SENT:
+        messages_storage[chat_id] = {'page': 1, 'part': 1, 'msg_type': 'sent'}
+        
         info = save_messages('info', update=update, context=context)
         max_page, _ = max_page_user(update=update, context=context)
 
@@ -353,11 +384,13 @@ def echo(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     text = update.message.text
     if text == 'Помощь':
-        return help(update=update, context=context)
+        return help(update=update, 
+                    context=context)
     elif text == 'Контакты':
         update.message.reply_text(text='Связь с разработчиками: @millionware и @ZERoN11')
     elif text.startswith('/login'):
-        if user_exists(update=update, context=context):
+        if user_exists(update=update, 
+                       context=context):
             reply_text = 'Вы уже авторизованы! Если вы сменили пароль, ты повторите процедуру через ' \
                          'команду /relogin.\n\t\t\t' \
                          '/relogin <password> <password again>'
@@ -366,16 +399,20 @@ def echo(update: Update, context: CallbackContext):
             try:
                 logpass = text.split()
                 login, password = logpass[1], logpass[2]
+                
                 session = requests.Session()
                 auth(session, login, password)
+                
                 user = User()
                 user.telegram_id = chat_id
                 user.name = login
                 user.hash = secrets.token_bytes(32)
                 user.hashed_password = password_encrypt(password.encode(), user.hash)
+                
                 session_db = db_session.create_session()
                 session_db.add(user)
                 session_db.commit()
+                
                 reply_text = 'Успешная авторизация!'
                 keyboard = get_base_inline_keyboard()
             except (ValueError, IndexError):
@@ -386,15 +423,18 @@ def echo(update: Update, context: CallbackContext):
             reply_markup=keyboard,
         )
     elif text.startswith('/relogin'):
-        if not user_exists(update=update, context=context):
+        if not user_exists(update=update, 
+                           context=context):
             reply_text = 'Вы не можете использовать эту команду, так как не авторизовывались ранее.'
             keyboard = get_base_reply_keyboard()
         else:
             try:
                 session_db = db_session.create_session()
+                
                 password = text.split()
                 password1, password2 = password[1], password[2]
                 assert password1 == password2, 'Пароли не совпадают!'
+                
                 session = requests.Session()
                 user = session_db.query(User).filter(User.telegram_id == chat_id).first()
                 old_password = password_decrypt(user.hashed_password, user.hash).decode()
@@ -406,6 +446,7 @@ def echo(update: Update, context: CallbackContext):
                     user.hash = secrets.token_bytes(32)
                     user.hashed_password = password_encrypt(password1.encode(), user.hash)
                     session_db.commit()
+                    
                     reply_text = 'Пароль успешно изменен!'
                     keyboard = get_base_inline_keyboard()
             except AssertionError as e:
