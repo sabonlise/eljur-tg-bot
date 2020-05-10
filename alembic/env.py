@@ -18,7 +18,8 @@ fileConfig(config.config_file_name)
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 import sys
-sys.path.insert(0, r'E:\web-server')       # set a path to your project folder
+import os
+sys.path.insert(0, '\\'.join(os.getcwd().split('\\')[:-1]))       # set a path to your project folder
 from data.db_session import SqlAlchemyBase
 import data.__all_models
 target_metadata = SqlAlchemyBase.metadata
