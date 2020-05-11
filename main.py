@@ -1,3 +1,4 @@
+import os
 import secrets
 import requests
 from sqlalchemy            import exc
@@ -16,8 +17,6 @@ from data                  import db_session
 from data.users            import User
 
 from bot.keyboard          import *
-from bot.settings          import TOKEN
-from bot.settings          import REQUEST_KWARGS
 
 from methods.marks         import mark_parse
 from methods.misses        import get_misses
@@ -35,6 +34,8 @@ from methods.journal       import get_full_journal_week
 from methods.messages      import get_messages_content
 from methods.journal       import save_formatted_schedule
 
+
+TOKEN = os.environ.get('TOKEN')
 
 messages_storage = {}
 user_storage = {}
@@ -535,8 +536,7 @@ def main():
     # токен от бота и прокси сервер из файла settings
     updater = Updater(
         token=TOKEN,
-        use_context=True,
-        request_kwargs=REQUEST_KWARGS
+        use_context=True
     )
 
     start_handler = CommandHandler("start", start)
