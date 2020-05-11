@@ -530,7 +530,7 @@ def echo(update: Update, context: CallbackContext):
 def main():
     # путь до папки с бд (сама бд создастся автоматически)
     try:
-        db_session.global_init('..\\db\\users.sqlite')
+        db_session.global_init('db\\users.sqlite')
     except exc.OperationalError:
         print('Указан неверный путь к папке с базой данных.')
     # токен от бота и прокси сервер из файла settings
