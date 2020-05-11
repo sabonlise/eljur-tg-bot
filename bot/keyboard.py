@@ -2,8 +2,10 @@ from telegram import KeyboardButton
 from telegram import ReplyKeyboardMarkup
 from telegram import InlineKeyboardButton
 from telegram import InlineKeyboardMarkup
+import os
 
-from bot.settings import CHAT_URL
+
+CHAT_URL = os.environ.get('CHAT_URL')
 
 HELP = "Доступные команды:\n/login <login> <password> - авторизация.\n" \
        "/relogin <password> <password again> - смена пароля в боте если вы сменили пароль в элжуре.\n\n" \
